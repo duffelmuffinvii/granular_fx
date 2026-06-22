@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<FILTERGRAPH>
+  <FILTER uid="1" x="0.5" y="0.1" useARA="0">
+    <PLUGIN name="Audio Input" descriptiveName="" format="Internal" category="I/O devices"
+            manufacturer="JUCE" version="1.0" file="" uniqueId="246006c0"
+            isInstrument="0" fileTime="0" infoUpdateTime="0" numInputs="0"
+            numOutputs="2" isShell="0" hasARAExtension="0" uid="246006c0"/>
+    <STATE>0.</STATE>
+    <LAYOUT>
+      <INPUTS>
+        <BUS index="0" layout="disabled"/>
+      </INPUTS>
+      <OUTPUTS>
+        <BUS index="0" layout="C"/>
+      </OUTPUTS>
+    </LAYOUT>
+  </FILTER>
+  <FILTER uid="2" x="0.25" y="0.1" useARA="0">
+    <PLUGIN name="MIDI Input" descriptiveName="" format="Internal" category="I/O devices"
+            manufacturer="JUCE" version="1.0" file="" uniqueId="a9e4f9eb"
+            isInstrument="0" fileTime="0" infoUpdateTime="0" numInputs="0"
+            numOutputs="0" isShell="0" hasARAExtension="0" uid="a9e4f9eb"/>
+    <STATE>0.</STATE>
+    <LAYOUT>
+      <INPUTS>
+        <BUS index="0" layout="disabled"/>
+      </INPUTS>
+      <OUTPUTS>
+        <BUS index="0" layout="disabled"/>
+      </OUTPUTS>
+    </LAYOUT>
+  </FILTER>
+  <FILTER uid="3" x="0.5" y="0.9" useARA="0">
+    <PLUGIN name="Audio Output" descriptiveName="" format="Internal" category="I/O devices"
+            manufacturer="JUCE" version="1.0" file="" uniqueId="724248cb"
+            isInstrument="0" fileTime="0" infoUpdateTime="0" numInputs="1"
+            numOutputs="0" isShell="0" hasARAExtension="0" uid="724248cb"/>
+    <STATE>0.</STATE>
+    <LAYOUT>
+      <INPUTS>
+        <BUS index="0" layout="L R"/>
+      </INPUTS>
+      <OUTPUTS>
+        <BUS index="0" layout="disabled"/>
+      </OUTPUTS>
+    </LAYOUT>
+  </FILTER>
+  <FILTER uid="4" x="0.25" y="0.9" useARA="0">
+    <PLUGIN name="MIDI Output" descriptiveName="" format="Internal" category="I/O devices"
+            manufacturer="JUCE" version="1.0" file="" uniqueId="9d5bbb00"
+            isInstrument="0" fileTime="0" infoUpdateTime="0" numInputs="0"
+            numOutputs="0" isShell="0" hasARAExtension="0" uid="9d5bbb00"/>
+    <STATE>0.</STATE>
+    <LAYOUT>
+      <INPUTS>
+        <BUS index="0" layout="disabled"/>
+      </INPUTS>
+      <OUTPUTS>
+        <BUS index="0" layout="disabled"/>
+      </OUTPUTS>
+    </LAYOUT>
+  </FILTER>
+  <FILTER uid="5" x="0.4075" y="0.5269230769230769" useARA="0" uiLastX_Normal="106"
+          uiLastY_Normal="100" uiopen_Normal="0">
+    <PLUGIN name="granular_fx" format="VST3" category="Fx" manufacturer="yourcompany"
+            version="1.0.0" file="/Users/sam/Library/Audio/Plug-Ins/VST3/granular_fx.vst3"
+            uniqueId="fba8de24" isInstrument="0" fileTime="19eefa82cca" infoUpdateTime="19eefab69ad"
+            numInputs="2" numOutputs="2" isShell="0" hasARAExtension="0"
+            uid="acf956da"/>
+    <STATE>1403.VMjLgHWA...O+fWarAhckI2bo8la8HRLt.iHfTlai8FYo41Y8HRUTYTK3HxO9.BOVMEUy.Ea0cVZtMEcgQWY9vSRC8Vav8lak4Fc9jiM33hUMoFSmwzLt3hKt7zJlcUXxEDZisVRxH1a3vVX3fjTLQmKogjYTwVXogiQY8FMwjENHIUUTkEUKMCR38TNtHzSPUDahcFLVkkdUwlX4QyPOAUQpQUPvPDRuEkUOgFTVkkbEYEYkEkUZEyZwH1a3vVXn4BZic1cVM1ZvjFR4MiPLg1Mn8zMtTETRUDUSYlZFkENHITVqcmUXQCNvHFMzDCVn4BZic1cVM1ZvjFR1MiPLg1Mn8zMtTETRUDUSYlZFkENHITVqcmUXQCNEM1avXUVn4BZic1cVM1ZvjFR1MiPLg1Mn8zMtTETRUDUSYlZFkENHITVqQSLh8VTWQVYQYkVwrVLh8FNrEFZtf1XmcmUisFLogDdyHDSncCZOciKUAkTEQ0TlolQYgCRBk0ZzDiXuE0UjUVSWQFcMwFRlg0UXIWUWkENHIESz4RZHU2LC8DTEoFUAACQH8VTV8DZPwlXzfCLisVTsgjYXcEVxU0UYgCRBwDcPMjSzn1TNQiZ40DMhkGS5AUZLYmYogTcyLzSPUjZTEDLDgzaQY0SnIFahc1ZrEVYQYUVz0zUZo2ZsgjYXcEVxU0UYgCRRwjdyHkSzn1TNQiZCwjdXkGS3QUZMMCR3sTN1MDUAkTUP0TPRokZvjFRskzUX8FMwbUdqwFYqkjPHESQFEFLUY0SnY1PLQmKogTcyLzSPUjZTEDLDgzaQY0Sn4xUXQGNvHVZEYzX5UEahglKnM1Y2Y0XqASZHY2L3wDMpMkSzn1TNICVSwDLlMES5gzTLg1Mn8zMtTETRUDUSYlZFkENHIjXuEkLX4FNqI1YQckV0kjPHESQFEFLUY0SngTZKYGR3sTN1MDUAkTUP0TPRokZvjFR1slQik1YwbkLUYkVsclQiUVPogjYXcEVxU0UYgCRBwDctjFR0MyPOAUQpQUPvPDRuEkUOglKWokdMYjVkM1UY81XFokd3TESn4BZic1cVM1ZvjFR1MiPLg1Mn8zMtTETRUDUSYlZFkENHIjXuEkLX4FNvL1ZqESVtEkLWgGRBgTLEYTXvTkUOglKosjcHg2R4X2PTETRUAUSAIkVpASZHY2ZFMVZmEyUxTkUZ01YFMVYMkFRlg0UXIWUWkENHIESz4RZHU2LC8DTEoFUAACQH8VTV8DZtbkV50jQZU1XWk0aiYjV5gSQMglKnM1Y2Y0XqASZHc2LBwDZ2f1S23RUPIUQTMkYpYTV3fjPhUWSWokdqESXzgCLhkVQFMldUwlXn4BZic1cVM1ZvjFR1MCZLQiZS4DMpMkSyfzTLcmYo0jcXkVSncCZOciKUAkTEQ0TlolQYgCRnI1ZYcUV30zUYglKnM1Y2Y0XqASZHY2LBwDZ2f1S23RUPIUQTMkYpYTV3fDdh81aWkUYQYkVwrVLh8FNrEFZtf1XmcmUisFLogTdyHDSncCZOciKUAkTEQ0TlolQYgCR3I1aucUVk0jLXcVTGM1ZI0FRlg0UXIWUWkENHIDSzQzTNQiZS4DMpMjSy3RdMQiK40zcHg2R4X2PTETRUAUSAIkVpASZHk2ZrQ1Z3.iXzPSLXglKnM1Y2Y0XqASZHY2LBwDZ2f1S2biPTcVRWg0bUYzXqkjLhkiKt3hKt3hKt3hKt3haTU0PUQDU3sFaicVTWkEQEYzXmEDTtDDRTQlcEEiX4EDTtDDSt3xXt3hKt3hKt3hKlIUUMQUTPkzUZESQFM1ZQQEV5UjQ77RRC8Vav8lak4Fc9vyKVMEUy.Ea0cVZtMEcgQWY9..</STATE>
+    <LAYOUT>
+      <INPUTS>
+        <BUS index="0" layout="L R"/>
+      </INPUTS>
+      <OUTPUTS>
+        <BUS index="0" layout="L R"/>
+      </OUTPUTS>
+    </LAYOUT>
+  </FILTER>
+  <FILTER uid="6" x="0.34" y="0.2557692307692307" useARA="0">
+    <PLUGIN name="Splice Bridge" format="VST3" category="Instrument" manufacturer="Splice"
+            version="5.1.1" file="/Library/Audio/Plug-Ins/VST3/SpliceBridge.vst3"
+            uniqueId="c17e68ef" isInstrument="1" fileTime="19470c15ce0" infoUpdateTime="19eefab69ae"
+            numInputs="0" numOutputs="2" isShell="0" hasARAExtension="0"
+            uid="315b1c9c"/>
+    <STATE>191.VMjLgXK....O+fWarAhckI2bo8la8HRLt.iHfTlai8FYo41Y8HRUTYTK3HxO9.BOVMEUy.Ea0cVZtMEcgQWY9vSRC8Vav8lak4Fc9XCLt3hKt3hKt3hKt3hYRUUSTEETIckVwTjQisVTTgkdEYjKAQjYPQSPWgUdMcjKAQjct3hdA4hKt3hKt3hKtnTUv.UQAslXuk0UXoWUFE0YQcEV77RRC8Vav8lak4Fc9vyKVMEUy.Ea0cVZtMEcgQWY9..</STATE>
+    <LAYOUT>
+      <INPUTS/>
+      <OUTPUTS>
+        <BUS index="0" layout="L R"/>
+      </OUTPUTS>
+    </LAYOUT>
+  </FILTER>
+  <CONNECTION srcFilter="5" srcChannel="0" dstFilter="3" dstChannel="0"/>
+  <CONNECTION srcFilter="5" srcChannel="1" dstFilter="3" dstChannel="1"/>
+  <CONNECTION srcFilter="6" srcChannel="0" dstFilter="5" dstChannel="0"/>
+  <CONNECTION srcFilter="6" srcChannel="1" dstFilter="5" dstChannel="1"/>
+</FILTERGRAPH>
