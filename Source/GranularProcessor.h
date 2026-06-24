@@ -30,8 +30,7 @@
   -----------------------------------------------
     "grain_size"        — grain duration in milliseconds      (10–500 ms)
     "grain_density"     — grains started per second           (1–100)
-    "pitch_ratio"       — playback speed / pitch              (0.25–4.0)
-    "position_scatter"  — random variation in start position  (0–1)
+"position_scatter"  — random variation in start position  (0–1)
     "size_scatter"      — random variation in grain duration  (0–1)
     "pan_scatter"       — random variation in stereo pan      (0–1)
     "dry_wet"           — dry/wet mix                         (0–1)
@@ -135,7 +134,6 @@ public:
         // The audio thread reads these via ->load() in processBlock / spawnGrain.
         grainSizeParam       = apvts.getRawParameterValue ("grain_size");
         grainDensityParam    = apvts.getRawParameterValue ("grain_density");
-        pitchRatioParam      = apvts.getRawParameterValue ("pitch_ratio");  // retained but unused while weights are active
         for (int i = 0; i < 5; ++i)
             pitchWeightParams[i] = apvts.getRawParameterValue ("pitch_weight_" + juce::String (i));
         positionScatterParam = apvts.getRawParameterValue ("position_scatter");
@@ -408,7 +406,6 @@ private:
     // and outlives this object.
     std::atomic<float>* grainSizeParam       = nullptr;
     std::atomic<float>* grainDensityParam    = nullptr;
-    std::atomic<float>* pitchRatioParam      = nullptr;
     std::atomic<float>* positionScatterParam = nullptr;
     std::atomic<float>* sizeScatterParam     = nullptr;
     std::atomic<float>* panScatterParam      = nullptr;

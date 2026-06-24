@@ -21,7 +21,6 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     : AudioProcessorEditor (&p), audioProcessor (p),
       grainSizeAttachment       (p.apvts, "grain_size",        grainSizeSlider),
       grainDensityAttachment    (p.apvts, "grain_density",     grainDensitySlider),
-      pitchRatioAttachment      (p.apvts, "pitch_ratio",       pitchRatioSlider),
       positionScatterAttachment (p.apvts, "position_scatter",  positionScatterSlider),
       sizeScatterAttachment     (p.apvts, "size_scatter",      sizeScatterSlider),
       panScatterAttachment      (p.apvts, "pan_scatter",       panScatterSlider),
@@ -55,9 +54,6 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     setupDial (sizeScatterSlider,     sizeScatterLabel,     "Size Scatter");
     setupDial (panScatterSlider,      panScatterLabel,      "Pan Scatter");
     setupDial (dryWetSlider,          dryWetLabel,          "Dry / Wet");
-
-    // Pitch slider temporarily disabled — sequencer controls pitch instead.
-    // pitchRatioSlider and pitchRatioLabel are intentionally not added to the UI.
 
     reverseButton.setButtonText ("");
     addAndMakeVisible (reverseButton);

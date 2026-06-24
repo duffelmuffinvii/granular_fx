@@ -223,7 +223,6 @@ private:
 
     juce::Slider grainSizeSlider;
     juce::Slider grainDensitySlider;
-    juce::Slider pitchRatioSlider;
     juce::Slider positionScatterSlider;
     juce::Slider sizeScatterSlider;
     juce::Slider panScatterSlider;
@@ -231,7 +230,6 @@ private:
 
     juce::Label grainSizeLabel;
     juce::Label grainDensityLabel;
-    juce::Label pitchRatioLabel;
     juce::Label positionScatterLabel;
     juce::Label sizeScatterLabel;
     juce::Label panScatterLabel;
@@ -260,7 +258,6 @@ private:
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     SliderAttachment   grainSizeAttachment;
     SliderAttachment   grainDensityAttachment;
-    SliderAttachment   pitchRatioAttachment;
     SliderAttachment   positionScatterAttachment;
     SliderAttachment   sizeScatterAttachment;
     SliderAttachment   panScatterAttachment;

@@ -42,16 +42,6 @@ Granular_fx_testAudioProcessor::createParameterLayout()
         juce::NormalisableRange<float> (1.0f, 100.0f, 0.1f),
         15.0f));
 
-    // Pitch as discrete octave steps.
-    // The index maps to a playback speed ratio in GranularProcessor:
-    //   0 = -2 oct (0.25x), 1 = -1 oct (0.5x), 2 = unison (1.0x),
-    //   3 = +1 oct (2.0x),  4 = +2 oct (4.0x)
-    // Default index 2 = unison.
-    layout.add (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID ("pitch_ratio", 1), "Pitch",
-        juce::StringArray { "-2 oct", "-1 oct", "Unison", "+1 oct", "+2 oct" },
-        2));
-
     // Random variation in grain start position (0 = none, 1 = full buffer scatter).
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID("position_scatter", 1), "Position Scatter",

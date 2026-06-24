@@ -8,6 +8,8 @@
             file="Source/PluginProcessor.cpp"/>
       <FILE id="AKWZw4" name="PluginProcessor.h" compile="0" resource="0"
             file="Source/PluginProcessor.h"/>
+      <FILE id="gP3rX1" name="GranularProcessor.h" compile="0" resource="0"
+            file="Source/GranularProcessor.h"/>
       <FILE id="YyFFXO" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="k3XVEa" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
