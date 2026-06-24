@@ -86,22 +86,20 @@ Granular_fx_testAudioProcessor::createParameterLayout()
         juce::ParameterID ("size_division", 1), "Size Division",
         juce::StringArray { "1/32", "1/16", "1/8", "1/4", "1/2", "1/1" }, 3));  // default 1/4
 
-    // ---- Pitch probability weights ----
-    // Each grain independently picks a pitch by weighted random draw.
-    // A weight of 0 disables that octave entirely; higher values make it more likely.
-    // Weights are normalised at runtime so only their relative values matter.
-    // Order: 0=-2oct, 1=-1oct, 2=Unison, 3=+1oct, 4=+2oct.
-    // Defaults give a slight bell curve centred on unison.
-    const float defaultWeights[5] = { 0.0f, 0.3f, 1.0f, 0.3f, 0.0f };
-    const char* weightNames[5]    = { "-2 Oct Weight", "-1 Oct Weight",
-                                      "Unison Weight", "+1 Oct Weight", "+2 Oct Weight" };
-    const char* weightIds[5]      = { "pitch_weight_0", "pitch_weight_1", "pitch_weight_2",
-                                      "pitch_weight_3", "pitch_weight_4" };
-    for (int i = 0; i < 5; ++i)
+    // ---- Pitch sequencer ----
+    // Active sequence length (1–8 steps).
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID ("seq_length", 1), "Seq Length",
+        juce::NormalisableRange<float> (1.0f, 8.0f, 1.0f),
+        4.0f));
+
+    // Each step holds a pitch index: 0=-2oct, 1=-1oct, 2=unison, 3=+1oct, 4=+2oct.
+    for (int i = 0; i < 8; ++i)
         layout.add (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID (weightIds[i], 1), weightNames[i],
-            juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f),
-            defaultWeights[i]));
+            juce::ParameterID ("seq_step_" + juce::String (i), 1),
+            "Seq Step " + juce::String (i + 1),
+            juce::NormalisableRange<float> (0.0f, 4.0f, 1.0f),
+            2.0f));  // default unison
 
     return layout;
 }

@@ -239,9 +239,11 @@ private:
     juce::Label        reverseLabel;
 
     // Pitch probability weights — one dial per octave option
-    juce::Label  pitchWeightHeaderLabel;
-    juce::Slider pitchWeightSliders[5];
-    juce::Label  pitchWeightLabels[5];
+    juce::Label  seqHeaderLabel;
+    juce::Slider seqLengthSlider;
+    juce::Label  seqLengthLabel;
+    juce::Slider seqStepSliders[8];
+    juce::Label  seqStepLabels[8];
 
     // Tempo sync controls — one toggle + one division combo per synced parameter.
     juce::ToggleButton densitySyncButton;
@@ -263,7 +265,8 @@ private:
     SliderAttachment   panScatterAttachment;
     SliderAttachment   dryWetAttachment;
     ButtonAttachment   reverseAttachment;
-    std::unique_ptr<SliderAttachment> pitchWeightAttachments[5];
+    SliderAttachment   seqLengthAttachment;
+    std::unique_ptr<SliderAttachment> seqStepAttachments[8];
     ButtonAttachment   densitySyncAttachment;
     ButtonAttachment   sizeSyncAttachment;
     ComboBoxAttachment densityDivisionAttachment;

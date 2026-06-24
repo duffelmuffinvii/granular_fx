@@ -26,6 +26,7 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
       panScatterAttachment      (p.apvts, "pan_scatter",       panScatterSlider),
       dryWetAttachment          (p.apvts, "dry_wet",           dryWetSlider),
       reverseAttachment         (p.apvts, "reverse",           reverseButton),
+      seqLengthAttachment       (p.apvts, "seq_length",        seqLengthSlider),
       densitySyncAttachment     (p.apvts, "density_sync",      densitySyncButton),
       sizeSyncAttachment        (p.apvts, "size_sync",         sizeSyncButton),
       densityDivisionAttachment (p.apvts, "density_division",  densityDivisionBox),
@@ -90,29 +91,45 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     addAndMakeVisible (densityDivisionBox);
     addAndMakeVisible (sizeDivisionBox);
 
-    // Pitch weight section
-    pitchWeightHeaderLabel.setText ("PITCH WEIGHTS (oct)", juce::dontSendNotification);
-    pitchWeightHeaderLabel.setJustificationType (juce::Justification::left);
-    pitchWeightHeaderLabel.setFont (juce::FontOptions (10.0f));
-    pitchWeightHeaderLabel.setColour (juce::Label::textColourId, juce::Colour (0xff888888));
-    addAndMakeVisible (pitchWeightHeaderLabel);
+    // Pitch sequencer section
+    seqHeaderLabel.setText ("PITCH SEQ", juce::dontSendNotification);
+    seqHeaderLabel.setJustificationType (juce::Justification::left);
+    seqHeaderLabel.setFont (juce::FontOptions (10.0f));
+    seqHeaderLabel.setColour (juce::Label::textColourId, juce::Colour (0xff888888));
+    addAndMakeVisible (seqHeaderLabel);
 
-    const char* weightLabelTexts[5] = { "-2", "-1", "0", "+1", "+2" };
-    for (int i = 0; i < 5; ++i)
+    // Length dial — same compact style as other dials but narrower.
+    seqLengthSlider.setSliderStyle (juce::Slider::LinearVertical);
+    seqLengthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, true, WEIGHT_W, 14);
+    seqLengthSlider.setColour (juce::Slider::textBoxTextColourId,       juce::Colour (0xffdddddd));
+    seqLengthSlider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour (0xff1c1c1c));
+    addAndMakeVisible (seqLengthSlider);
+
+    seqLengthLabel.setText ("LEN", juce::dontSendNotification);
+    seqLengthLabel.setJustificationType (juce::Justification::centred);
+    seqLengthLabel.setFont (juce::FontOptions (11.0f));
+    addAndMakeVisible (seqLengthLabel);
+
+    static const char* pitchNames[] = { "-2", "-1", "0", "+1", "+2" };
+
+    for (int i = 0; i < 8; ++i)
     {
-        pitchWeightSliders[i].setSliderStyle (juce::Slider::LinearVertical);
-        pitchWeightSliders[i].setTextBoxStyle (juce::Slider::TextBoxBelow, true, WEIGHT_W, 14);
-        pitchWeightSliders[i].setColour (juce::Slider::textBoxTextColourId,       juce::Colour (0xffdddddd));
-        pitchWeightSliders[i].setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour (0xff1c1c1c));
-        addAndMakeVisible (pitchWeightSliders[i]);
+        seqStepSliders[i].setSliderStyle (juce::Slider::LinearVertical);
+        seqStepSliders[i].setTextBoxStyle (juce::Slider::TextBoxBelow, true, WEIGHT_W, 14);
+        seqStepSliders[i].setColour (juce::Slider::textBoxTextColourId,       juce::Colour (0xffdddddd));
+        seqStepSliders[i].setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour (0xff1c1c1c));
+        seqStepSliders[i].textFromValueFunction = [] (double v) -> juce::String {
+            return pitchNames[juce::jlimit (0, 4, (int) std::round (v))];
+        };
+        addAndMakeVisible (seqStepSliders[i]);
 
-        pitchWeightLabels[i].setText (weightLabelTexts[i], juce::dontSendNotification);
-        pitchWeightLabels[i].setJustificationType (juce::Justification::centred);
-        pitchWeightLabels[i].setFont (juce::FontOptions (11.0f));
-        addAndMakeVisible (pitchWeightLabels[i]);
+        seqStepLabels[i].setText (juce::String (i + 1), juce::dontSendNotification);
+        seqStepLabels[i].setJustificationType (juce::Justification::centred);
+        seqStepLabels[i].setFont (juce::FontOptions (11.0f));
+        addAndMakeVisible (seqStepLabels[i]);
 
-        pitchWeightAttachments[i] = std::make_unique<SliderAttachment> (
-            p.apvts, "pitch_weight_" + juce::String (i), pitchWeightSliders[i]);
+        seqStepAttachments[i] = std::make_unique<SliderAttachment> (
+            p.apvts, "seq_step_" + juce::String (i), seqStepSliders[i]);
     }
 
     // Cache sync param pointers so timerCallback can read them without a hash lookup.
@@ -197,16 +214,22 @@ void Granular_fx_testAudioProcessorEditor::resized()
     densitySyncButton.setBounds (densityX, syncRowY,                      DIAL_SIZE, toggleH);
     densityDivisionBox.setBounds(densityX, syncRowY + toggleH + comboGap,  DIAL_SIZE, comboH);
 
-    // Pitch weight dials — below the sync controls.
-    const int weightRowY = syncRowY + toggleH + comboGap + comboH + PADDING;
+    // Pitch sequencer — below the sync controls.
+    const int seqRowY = syncRowY + toggleH + comboGap + comboH + PADDING;
 
-    pitchWeightHeaderLabel.setBounds (PADDING, weightRowY, 200, LABEL_HEIGHT);
+    seqHeaderLabel.setBounds (PADDING, seqRowY, 80, LABEL_HEIGHT);
 
-    int wx = PADDING;
-    for (int i = 0; i < 5; ++i)
+    // Length slider sits to the right of the header, same height as step sliders.
+    const int lenX = PADDING + 80 + WEIGHT_GAP;
+    seqLengthLabel.setBounds  (lenX, seqRowY,                              WEIGHT_W, LABEL_HEIGHT);
+    seqLengthSlider.setBounds (lenX, seqRowY + LABEL_HEIGHT + LABEL_HEIGHT, WEIGHT_W, DIAL_SIZE + 14);
+
+    // Step sliders start after a small gap following the length slider.
+    int sx = lenX + WEIGHT_W + WEIGHT_GAP * 3;
+    for (int i = 0; i < 8; ++i)
     {
-        pitchWeightLabels[i].setBounds  (wx, weightRowY + LABEL_HEIGHT,               WEIGHT_W, LABEL_HEIGHT);
-        pitchWeightSliders[i].setBounds (wx, weightRowY + LABEL_HEIGHT + LABEL_HEIGHT, WEIGHT_W, DIAL_SIZE + 14);
-        wx += WEIGHT_W + WEIGHT_GAP;
+        seqStepLabels[i].setBounds  (sx, seqRowY + LABEL_HEIGHT,               WEIGHT_W, LABEL_HEIGHT);
+        seqStepSliders[i].setBounds (sx, seqRowY + LABEL_HEIGHT + LABEL_HEIGHT, WEIGHT_W, DIAL_SIZE + 14);
+        sx += WEIGHT_W + WEIGHT_GAP;
     }
 }

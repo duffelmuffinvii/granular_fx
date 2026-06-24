@@ -134,8 +134,9 @@ public:
         // The audio thread reads these via ->load() in processBlock / spawnGrain.
         grainSizeParam       = apvts.getRawParameterValue ("grain_size");
         grainDensityParam    = apvts.getRawParameterValue ("grain_density");
-        for (int i = 0; i < 5; ++i)
-            pitchWeightParams[i] = apvts.getRawParameterValue ("pitch_weight_" + juce::String (i));
+        seqLengthParam = apvts.getRawParameterValue ("seq_length");
+        for (int i = 0; i < 8; ++i)
+            seqStepParams[i] = apvts.getRawParameterValue ("seq_step_" + juce::String (i));
         positionScatterParam = apvts.getRawParameterValue ("position_scatter");
         sizeScatterParam     = apvts.getRawParameterValue ("size_scatter");
         panScatterParam      = apvts.getRawParameterValue ("pan_scatter");
@@ -165,6 +166,7 @@ public:
             g.active = false;
 
         samplesSinceLastGrain = 0.0f;
+        currentStep = 0;
     }
 
     // --------------------------------------------------------
@@ -261,27 +263,11 @@ public:
             {
                 samplesSinceLastGrain -= samplesPerGrain;
 
-                // Weighted random pitch selection.
-                // Each grain independently draws a pitch based on the 5 weight values.
-                float weights[5];
-                float totalWeight = 0.0f;
-                for (int i = 0; i < 5; ++i)
-                {
-                    weights[i] = juce::jmax (0.0f, pitchWeightParams[i]->load());
-                    totalWeight += weights[i];
-                }
-
-                float selectedPitch = 1.0f;  // unison fallback if all weights are zero
-                if (totalWeight > 0.0f)
-                {
-                    float r = (static_cast<float> (rng()) / static_cast<float> (0xFFFFFFFFu)) * totalWeight;
-                    float cumulative = 0.0f;
-                    for (int i = 0; i < 5; ++i)
-                    {
-                        cumulative += weights[i];
-                        if (r < cumulative) { selectedPitch = pitchTable[i]; break; }
-                    }
-                }
+                // Stepped sequencer pitch selection.
+                const int seqLen = juce::jlimit (1, 8, static_cast<int> (seqLengthParam->load()));
+                const int stepIdx = juce::jlimit (0, 4, static_cast<int> (seqStepParams[currentStep]->load()));
+                const float selectedPitch = pitchTable[stepIdx];
+                currentStep = (currentStep + 1) % seqLen;
 
                 spawnGrain (bufLen, grainSizeMs, selectedPitch, positionScatter, sizeScatter, panScatter, reverse);
             }
@@ -415,9 +401,12 @@ private:
     std::atomic<float>* sizeSyncParam        = nullptr;
     std::atomic<float>* densityDivisionParam = nullptr;
     std::atomic<float>* sizeDivisionParam    = nullptr;
-    std::atomic<float>* pitchWeightParams[5]  = {};
+    std::atomic<float>* seqLengthParam        = nullptr;
+    std::atomic<float>* seqStepParams[8]      = {};
 
     // ---- Audio state ----
+    int currentStep = 0;
+
     juce::AudioBuffer<float> circularBuffer;
     int writePos = 0;
     juce::AudioBuffer<float> wetBuffer;
