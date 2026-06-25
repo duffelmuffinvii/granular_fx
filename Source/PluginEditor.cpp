@@ -12,7 +12,8 @@
 static constexpr int DIAL_SIZE     = 80;
 static constexpr int LABEL_HEIGHT  = 20;
 static constexpr int PADDING       = 16;
-static constexpr int NUM_CONTROLS  = 6;  // dials only; pitch hidden while weights are active
+static constexpr int NUM_CONTROLS  = 5;  // dials in the main row (dry/wet moved to left column)
+static constexpr int DW_W          = 36; // width of the dry/wet slider column
 static constexpr int WEIGHT_W      = 34;  // width of each pitch weight slider
 static constexpr int WEIGHT_GAP    = 4;   // gap between weight sliders
 
@@ -269,7 +270,13 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     setupDial (positionScatterSlider, positionScatterLabel, "Pos Scatter");
     setupDial (sizeScatterSlider,     sizeScatterLabel,     "Size Scatter");
     setupDial (panScatterSlider,      panScatterLabel,      "Pan Scatter");
-    setupDial (dryWetSlider,          dryWetLabel,          "Dry / Wet");
+    dryWetSlider.setSliderStyle (juce::Slider::LinearVertical);
+    dryWetSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    addAndMakeVisible (dryWetSlider);
+    dryWetLabel.setText ("DRY/WET", juce::dontSendNotification);
+    dryWetLabel.setJustificationType (juce::Justification::centred);
+    dryWetLabel.setFont (juce::FontOptions (9.0f));
+    addAndMakeVisible (dryWetLabel);
 
     reverseButton.setButtonText ("");
     addAndMakeVisible (reverseButton);
@@ -354,7 +361,7 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     // Poll every ~100 ms to grey out / restore dials as sync toggles change.
     startTimerHz (10);
 
-    setSize (PADDING + (NUM_CONTROLS + 1) * (DIAL_SIZE + PADDING),
+    setSize (DW_W + PADDING + (NUM_CONTROLS + 1) * (DIAL_SIZE + PADDING),
              PADDING + LABEL_HEIGHT + DIAL_SIZE + 16   // dial row
              + PADDING + 20 + 4 + 20                  // sync row (toggle + gap + combo)
              + PADDING + LABEL_HEIGHT + 120 + PADDING); // env header + editor + bottom
@@ -392,7 +399,12 @@ void Granular_fx_testAudioProcessorEditor::paint (juce::Graphics& g)
 
 void Granular_fx_testAudioProcessorEditor::resized()
 {
-    int x = PADDING;
+    // Dry/wet slider — full height on the far left.
+    dryWetLabel.setBounds  (0, PADDING, DW_W, LABEL_HEIGHT);
+    dryWetSlider.setBounds (0, PADDING + LABEL_HEIGHT, DW_W,
+                            getHeight() - PADDING - LABEL_HEIGHT - PADDING);
+
+    int x = DW_W + PADDING;
     const int y = PADDING;
 
     // y-position just below the dial row: top padding + label + dial + textbox
@@ -408,18 +420,15 @@ void Granular_fx_testAudioProcessorEditor::resized()
         x += DIAL_SIZE + PADDING;
     };
 
-    // Grain size — remembering its x before placeControl advances it.
     const int sizeX = x;
     placeControl (grainSizeSlider, grainSizeLabel);
 
     const int densityX = x;
     placeControl (grainDensitySlider, grainDensityLabel);
 
-    // Pitch slider is hidden while the sequencer is active — skip its slot.
     placeControl (positionScatterSlider, positionScatterLabel);
     placeControl (sizeScatterSlider,     sizeScatterLabel);
     placeControl (panScatterSlider,      panScatterLabel);
-    placeControl (dryWetSlider,          dryWetLabel);
 
     // Reverse toggle — label above, button centred in the slot below.
     reverseLabel.setBounds  (x, y, DIAL_SIZE, LABEL_HEIGHT);
@@ -436,12 +445,13 @@ void Granular_fx_testAudioProcessorEditor::resized()
     // Graphical pitch envelope — below the sync controls.
     const int seqRowY     = syncRowY + toggleH + comboGap + comboH + PADDING;
     const int seqEditorH  = 120;
-    const int editorWidth = getWidth() - PADDING * 2;
+    const int dialAreaL   = DW_W + PADDING;
+    const int editorWidth = getWidth() - dialAreaL - PADDING;
 
     // Header row: label on left, length button and snap button on right
-    seqHeaderLabel.setBounds    (PADDING,              seqRowY, editorWidth - 160, LABEL_HEIGHT);
-    patternLenButton.setBounds  (getWidth() - PADDING - 100 - 4 - 56, seqRowY, 100, LABEL_HEIGHT);
-    snapButton.setBounds        (getWidth() - PADDING - 56,            seqRowY,  56, LABEL_HEIGHT);
+    seqHeaderLabel.setBounds   (dialAreaL,                             seqRowY, editorWidth - 160, LABEL_HEIGHT);
+    patternLenButton.setBounds (getWidth() - PADDING - 100 - 4 - 56,  seqRowY, 100, LABEL_HEIGHT);
+    snapButton.setBounds       (getWidth() - PADDING - 56,             seqRowY,  56, LABEL_HEIGHT);
 
-    seqEditor.setBounds (PADDING, seqRowY + LABEL_HEIGHT, editorWidth, seqEditorH);
+    seqEditor.setBounds (dialAreaL, seqRowY + LABEL_HEIGHT, editorWidth, seqEditorH);
 }
