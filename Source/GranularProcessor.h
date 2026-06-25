@@ -46,6 +46,7 @@
 
 #include <JuceHeader.h>
 #include <array>
+#include <algorithm>
 #include <random>
 
 // How many seconds of incoming audio to store in the recording buffer.
@@ -60,6 +61,57 @@ static constexpr int MAX_GRAINS = 64;
 // Resolution of the pre-computed Hann window lookup table.
 // 1024 points gives sub-millisecond accuracy — more than sufficient for envelope shaping.
 static constexpr int HANN_TABLE_SIZE = 1024;
+
+// Maximum steps in the pattern-based sequencer.
+static constexpr int MAX_SEQ_STEPS = 32;
+
+// ============================================================
+//  PITCH ENVELOPE DATA
+// ============================================================
+
+/* ---- Old step-based structs (replaced by breakpoint envelope) ----
+struct SeqStep
+{
+    int   pitchIndex    = 2;
+    float durationBeats = 1.0f;
+    bool  slide         = false;
+};
+struct SeqPattern (old)
+{
+    SeqStep steps[MAX_SEQ_STEPS];
+    int     numSteps = 4;
+    SeqPattern() { for (auto& s : steps) s = SeqStep{}; numSteps = 4; }
+};
+---- END OLD ---- */
+
+struct BreakPoint
+{
+    float timeBeat   = 0.0f;    // position within pattern in beats [0, patternBeats)
+    float pitchRatio = 1.0f;    // continuous pitch ratio: 0.25 (-2oct) to 4.0 (+2oct)
+};
+
+struct SeqPattern
+{
+    BreakPoint points[MAX_SEQ_STEPS];
+    int   numPoints    = 2;
+    float patternBeats = 4.0f;
+
+    SeqPattern()
+    {
+        numPoints    = 2;
+        patternBeats = 4.0f;
+        points[0] = { 0.0f, 1.0f };
+        points[1] = { 2.0f, 1.0f };
+        for (int i = 2; i < MAX_SEQ_STEPS; ++i)
+            points[i] = BreakPoint{};
+    }
+
+    void sortPoints()
+    {
+        std::sort (points, points + numPoints,
+            [] (const BreakPoint& a, const BreakPoint& b) { return a.timeBeat < b.timeBeat; });
+    }
+};
 
 
 // ============================================================
@@ -112,6 +164,21 @@ public:
 
     GranularProcessor() : rng (std::random_device{}()) {}
 
+    void setPattern (const SeqPattern& p)
+    {
+        juce::ScopedLock sl (patternLock);
+        pendingPattern = p;
+        patternDirty   = true;
+    }
+
+    SeqPattern getPattern() const
+    {
+        juce::ScopedLock sl (patternLock);
+        return pendingPattern;
+    }
+
+    float getPlayheadBeat() const { return playheadBeat.load(); }
+
     // --------------------------------------------------------
     // prepareToPlay
     // Called by the host before playback starts.
@@ -134,9 +201,10 @@ public:
         // The audio thread reads these via ->load() in processBlock / spawnGrain.
         grainSizeParam       = apvts.getRawParameterValue ("grain_size");
         grainDensityParam    = apvts.getRawParameterValue ("grain_density");
-        seqLengthParam = apvts.getRawParameterValue ("seq_length");
-        for (int i = 0; i < 8; ++i)
-            seqStepParams[i] = apvts.getRawParameterValue ("seq_step_" + juce::String (i));
+        // (old stepped-sequencer APVTS params removed — pattern now lives outside APVTS)
+        // seqLengthParam = apvts.getRawParameterValue ("seq_length");
+        // for (int i = 0; i < 8; ++i)
+        //     seqStepParams[i] = apvts.getRawParameterValue ("seq_step_" + juce::String (i));
         positionScatterParam = apvts.getRawParameterValue ("position_scatter");
         sizeScatterParam     = apvts.getRawParameterValue ("size_scatter");
         panScatterParam      = apvts.getRawParameterValue ("pan_scatter");
@@ -166,7 +234,13 @@ public:
             g.active = false;
 
         samplesSinceLastGrain = 0.0f;
-        currentStep = 0;
+        // currentStep = 0;  // old stepped-sequencer counter — replaced by patternBeatPos
+        patternBeatPos = 0.0f;
+        playheadBeat.store (0.0f);
+
+        // Push default pattern to audio thread immediately.
+        activePattern = pendingPattern;
+        patternDirty  = false;
     }
 
     // --------------------------------------------------------
@@ -192,6 +266,17 @@ public:
 
         const int numSamples = buffer.getNumSamples();
         const int bufLen     = circularBuffer.getNumSamples();
+
+        // Pull any pending pattern update from the UI thread (lock-free: tryEnter).
+        if (patternLock.tryEnter())
+        {
+            if (patternDirty) { activePattern = pendingPattern; patternDirty = false; }
+            patternLock.exit();
+        }
+
+        const float patternTotalBeats = juce::jmax (0.001f, activePattern.patternBeats);
+
+        const float beatsPerSample = static_cast<float> (bpm) / (60.0f * static_cast<float> (currentSampleRate));
 
         // Division table: each entry is a fraction of a quarter note (beat).
         // duration_ms  = fraction * 60000 / bpm
@@ -228,9 +313,6 @@ public:
         }
         const bool  reverse          = reverseParam->load() >= 0.5f;
 
-        // Pitch table shared by the weighted random selection below.
-        static constexpr float pitchTable[] = { 0.25f, 0.5f, 1.0f, 2.0f, 4.0f };
-
         const float positionScatter  = positionScatterParam->load();
         const float sizeScatter      = sizeScatterParam->load();
         const float panScatter       = panScatterParam->load();
@@ -257,17 +339,66 @@ public:
 
             writePos = (writePos + 1) % bufLen;
 
+            // Advance pattern beat position every sample.
+            patternBeatPos += beatsPerSample;
+            if (patternBeatPos >= patternTotalBeats)
+                patternBeatPos -= patternTotalBeats;
+
             // Step 2: Check if it's time to spawn a new grain.
             samplesSinceLastGrain += 1.0f;
             if (samplesSinceLastGrain >= samplesPerGrain)
             {
                 samplesSinceLastGrain -= samplesPerGrain;
 
-                // Stepped sequencer pitch selection.
-                const int seqLen = juce::jlimit (1, 8, static_cast<int> (seqLengthParam->load()));
-                const int stepIdx = juce::jlimit (0, 4, static_cast<int> (seqStepParams[currentStep]->load()));
-                const float selectedPitch = pitchTable[stepIdx];
-                currentStep = (currentStep + 1) % seqLen;
+                // ---- Breakpoint envelope pitch selection ----
+                // Interpolates in log2 space between the two surrounding control points.
+                float selectedPitch = 1.0f;
+                {
+                    const int n = activePattern.numPoints;
+                    if (n == 1)
+                    {
+                        selectedPitch = activePattern.points[0].pitchRatio;
+                    }
+                    else if (n > 1)
+                    {
+                        const float beat = patternBeatPos;
+                        int prev = -1;
+                        for (int i = 0; i < n; ++i)
+                            if (activePattern.points[i].timeBeat <= beat + 0.0001f)
+                                prev = i;
+
+                        int   next;
+                        float t;
+                        if (prev == -1)
+                        {
+                            prev = n - 1;
+                            next = 0;
+                            float dt = (patternTotalBeats - activePattern.points[prev].timeBeat)
+                                     +  activePattern.points[next].timeBeat;
+                            t = (dt > 0.0f) ? (beat + patternTotalBeats - activePattern.points[prev].timeBeat) / dt : 0.0f;
+                        }
+                        else if (prev == n - 1)
+                        {
+                            next = 0;
+                            float dt = (patternTotalBeats - activePattern.points[prev].timeBeat)
+                                     +  activePattern.points[next].timeBeat;
+                            t = (dt > 0.0f) ? (beat - activePattern.points[prev].timeBeat) / dt : 0.0f;
+                        }
+                        else
+                        {
+                            next = prev + 1;
+                            float dt = activePattern.points[next].timeBeat - activePattern.points[prev].timeBeat;
+                            t = (dt > 0.0f) ? (beat - activePattern.points[prev].timeBeat) / dt : 0.0f;
+                        }
+
+                        t = juce::jlimit (0.0f, 1.0f, t);
+                        float logA = std::log2 (juce::jmax (0.001f, activePattern.points[prev].pitchRatio));
+                        float logB = std::log2 (juce::jmax (0.001f, activePattern.points[next].pitchRatio));
+                        selectedPitch = std::pow (2.0f, logA + t * (logB - logA));
+                    }
+
+                    playheadBeat.store (patternBeatPos);
+                }
 
                 spawnGrain (bufLen, grainSizeMs, selectedPitch, positionScatter, sizeScatter, panScatter, reverse);
             }
@@ -401,11 +532,19 @@ private:
     std::atomic<float>* sizeSyncParam        = nullptr;
     std::atomic<float>* densityDivisionParam = nullptr;
     std::atomic<float>* sizeDivisionParam    = nullptr;
-    std::atomic<float>* seqLengthParam        = nullptr;
-    std::atomic<float>* seqStepParams[8]      = {};
+    // ---- Old stepped-sequencer APVTS pointers (replaced by SeqPattern) ----
+    // std::atomic<float>* seqLengthParam   = nullptr;
+    // std::atomic<float>* seqStepParams[8] = {};
 
-    // ---- Audio state ----
-    int currentStep = 0;
+    // ---- Pattern sequencer state ----
+    mutable juce::CriticalSection patternLock;
+    SeqPattern   pendingPattern;             // written by UI thread via setPattern()
+    SeqPattern   activePattern;             // read by audio thread only
+    bool         patternDirty   = false;    // set by setPattern(), cleared in processBlock
+    float        patternBeatPos = 0.0f;     // current beat position within the pattern
+    std::atomic<float> playheadBeat { 0.0f }; // current beat position, read by UI for playhead
+
+    // int currentStep = 0;  // old stepped-sequencer counter — replaced by patternBeatPos
 
     juce::AudioBuffer<float> circularBuffer;
     int writePos = 0;

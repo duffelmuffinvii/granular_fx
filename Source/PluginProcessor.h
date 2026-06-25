@@ -62,6 +62,11 @@ public:
     // -----------------------------------------------------------------------
     juce::AudioProcessorValueTreeState apvts;
 
+    // ---- Pattern sequencer API (forwarded to GranularProcessor) ----
+    void       setPattern      (const SeqPattern& p) { granularProcessor.setPattern (p); }
+    SeqPattern getPattern      ()              const  { return granularProcessor.getPattern(); }
+    float      getPlayheadBeat ()              const  { return granularProcessor.getPlayheadBeat(); }
+
 private:
     //==============================================================================
 

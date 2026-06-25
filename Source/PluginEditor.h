@@ -200,6 +200,46 @@ public:
 };
 
 
+// ============================================================================
+// PitchSeqEditor
+// Line-graph pitch envelope editor with draggable breakpoints.
+//
+// Interaction:
+//   Left-click  on empty   — add a new breakpoint at that pitch/time
+//   Left-click  on point   — start dragging that point
+//   Drag                   — move the dragged point (snap if snapEnabled)
+//   Right-click on point   — delete it (minimum 1 point remains)
+// ============================================================================
+class PitchSeqEditor : public juce::Component
+{
+public:
+    std::function<void(const SeqPattern&)> onPatternChanged;
+
+    bool snapEnabled = false;
+
+    void setPattern     (const SeqPattern& p);
+    void setPlayheadBeat (float beat);
+
+    void paint     (juce::Graphics& g)         override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp   (const juce::MouseEvent& e) override;
+
+private:
+    SeqPattern pattern;
+    float      playheadBeat = 0.0f;
+    int        dragPoint    = -1;
+
+    float xFromBeat  (float beat)  const;
+    float beatFromX  (float x)     const;
+    float yFromRatio (float ratio) const;
+    float ratioFromY (float y)     const;
+    float snapRatio  (float ratio) const;
+    int   nearestPoint (float x, float y) const;
+    void  notifyChange();
+};
+
+
 //==============================================================================
 class Granular_fx_testAudioProcessorEditor  : public juce::AudioProcessorEditor,
                                                private juce::Timer
@@ -239,11 +279,17 @@ private:
     juce::Label        reverseLabel;
 
     // Pitch probability weights — one dial per octave option
-    juce::Label  seqHeaderLabel;
-    juce::Slider seqLengthSlider;
-    juce::Label  seqLengthLabel;
-    juce::Slider seqStepSliders[8];
-    juce::Label  seqStepLabels[8];
+    // ---- Old slider-based sequencer controls (replaced by PitchSeqEditor) ----
+    // juce::Label  seqHeaderLabel;
+    // juce::Slider seqLengthSlider;
+    // juce::Label  seqLengthLabel;
+    // juce::Slider seqStepSliders[8];
+    // juce::Label  seqStepLabels[8];
+
+    PitchSeqEditor  seqEditor;
+    juce::Label     seqHeaderLabel;
+    juce::TextButton snapButton     { "SNAP" };
+    juce::TextButton patternLenButton { "4 BEATS" };
 
     // Tempo sync controls — one toggle + one division combo per synced parameter.
     juce::ToggleButton densitySyncButton;
@@ -265,8 +311,8 @@ private:
     SliderAttachment   panScatterAttachment;
     SliderAttachment   dryWetAttachment;
     ButtonAttachment   reverseAttachment;
-    SliderAttachment   seqLengthAttachment;
-    std::unique_ptr<SliderAttachment> seqStepAttachments[8];
+    // SliderAttachment   seqLengthAttachment;            // old APVTS-based attachments
+    // std::unique_ptr<SliderAttachment> seqStepAttachments[8];
     ButtonAttachment   densitySyncAttachment;
     ButtonAttachment   sizeSyncAttachment;
     ComboBoxAttachment densityDivisionAttachment;

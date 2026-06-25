@@ -86,20 +86,19 @@ Granular_fx_testAudioProcessor::createParameterLayout()
         juce::ParameterID ("size_division", 1), "Size Division",
         juce::StringArray { "1/32", "1/16", "1/8", "1/4", "1/2", "1/1" }, 3));  // default 1/4
 
-    // ---- Pitch sequencer ----
-    // Active sequence length (1–8 steps).
-    layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID ("seq_length", 1), "Seq Length",
-        juce::NormalisableRange<float> (1.0f, 8.0f, 1.0f),
-        4.0f));
-
-    // Each step holds a pitch index: 0=-2oct, 1=-1oct, 2=unison, 3=+1oct, 4=+2oct.
-    for (int i = 0; i < 8; ++i)
-        layout.add (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID ("seq_step_" + juce::String (i), 1),
-            "Seq Step " + juce::String (i + 1),
-            juce::NormalisableRange<float> (0.0f, 4.0f, 1.0f),
-            2.0f));  // default unison
+    // ---- Pitch sequencer parameters removed ----
+    // The pattern now lives outside APVTS and is serialised manually in
+    // getStateInformation / setStateInformation below.
+    //
+    // Old APVTS-based params (preserved for reference):
+    // layout.add (std::make_unique<juce::AudioParameterFloat> (
+    //     juce::ParameterID ("seq_length", 1), "Seq Length",
+    //     juce::NormalisableRange<float> (1.0f, 8.0f, 1.0f), 4.0f));
+    // for (int i = 0; i < 8; ++i)
+    //     layout.add (std::make_unique<juce::AudioParameterFloat> (
+    //         juce::ParameterID ("seq_step_" + juce::String (i), 1),
+    //         "Seq Step " + juce::String (i + 1),
+    //         juce::NormalisableRange<float> (0.0f, 4.0f, 1.0f), 2.0f));
 
     return layout;
 }
@@ -256,20 +255,48 @@ juce::AudioProcessorEditor* Granular_fx_testAudioProcessor::createEditor()
 //==============================================================================
 void Granular_fx_testAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // Serialise the entire APVTS parameter state to XML and store it in destData.
-    // The host calls this when saving a project or preset.
     auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml (state.createXml());
+
+    // Append the breakpoint envelope as a child element alongside APVTS state.
+    const SeqPattern pat = getPattern();
+    auto* seqXml = xml->createNewChildElement ("SeqPattern");
+    seqXml->setAttribute ("numPoints",    pat.numPoints);
+    seqXml->setAttribute ("patternBeats", (double) pat.patternBeats);
+    for (int i = 0; i < pat.numPoints; ++i)
+    {
+        auto* ptXml = seqXml->createNewChildElement ("Point");
+        ptXml->setAttribute ("beat",  (double) pat.points[i].timeBeat);
+        ptXml->setAttribute ("ratio", (double) pat.points[i].pitchRatio);
+    }
+
     copyXmlToBinary (*xml, destData);
 }
 
 void Granular_fx_testAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // Restore parameter state from data previously saved by getStateInformation.
-    // The host calls this when loading a project or preset.
     std::unique_ptr<juce::XmlElement> xml (getXmlFromBinary (data, sizeInBytes));
-    if (xml != nullptr && xml->hasTagName (apvts.state.getType()))
-        apvts.replaceState (juce::ValueTree::fromXml (*xml));
+    if (xml == nullptr || ! xml->hasTagName (apvts.state.getType()))
+        return;
+
+    apvts.replaceState (juce::ValueTree::fromXml (*xml));
+
+    if (auto* seqXml = xml->getChildByName ("SeqPattern"))
+    {
+        SeqPattern pat;
+        pat.patternBeats = juce::jlimit (0.25f, 64.0f, (float) seqXml->getDoubleAttribute ("patternBeats", 4.0));
+        pat.numPoints    = juce::jlimit (1, MAX_SEQ_STEPS, seqXml->getIntAttribute ("numPoints", 2));
+        int i = 0;
+        for (auto* ptXml : seqXml->getChildIterator())
+        {
+            if (i >= pat.numPoints) break;
+            pat.points[i].timeBeat   = juce::jlimit (0.0f, pat.patternBeats, (float) ptXml->getDoubleAttribute ("beat",  0.0));
+            pat.points[i].pitchRatio = juce::jlimit (0.25f, 4.0f,            (float) ptXml->getDoubleAttribute ("ratio", 1.0));
+            ++i;
+        }
+        pat.sortPoints();
+        setPattern (pat);
+    }
 }
 
 //==============================================================================

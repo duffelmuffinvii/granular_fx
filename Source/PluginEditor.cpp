@@ -16,6 +16,221 @@ static constexpr int NUM_CONTROLS  = 6;  // dials only; pitch hidden while weigh
 static constexpr int WEIGHT_W      = 34;  // width of each pitch weight slider
 static constexpr int WEIGHT_GAP    = 4;   // gap between weight sliders
 
+// ============================================================================
+// PitchSeqEditor implementation
+// ============================================================================
+
+// Snap levels (ratio): -2, -1, 0, +1, +2 octaves
+static constexpr float kSnapRatios[] = { 0.25f, 0.5f, 1.0f, 2.0f, 4.0f };
+static constexpr float kSnapLabels[] = { -2.0f, -1.0f, 0.0f, 1.0f, 2.0f };
+
+// Coordinate transforms — log2 pitch space (top=+2oct, bottom=-2oct)
+float PitchSeqEditor::xFromBeat  (float beat)  const { return beat * (float) getWidth() / juce::jmax (0.001f, pattern.patternBeats); }
+float PitchSeqEditor::beatFromX  (float x)     const { return x * pattern.patternBeats / juce::jmax (1.0f, (float) getWidth()); }
+float PitchSeqEditor::yFromRatio (float ratio) const
+{
+    float log = std::log2 (juce::jmax (0.001f, ratio));    // -2 to +2
+    return (1.0f - (log + 2.0f) / 4.0f) * (float) getHeight();
+}
+float PitchSeqEditor::ratioFromY (float y) const
+{
+    float norm = 1.0f - y / juce::jmax (1.0f, (float) getHeight());
+    return std::pow (2.0f, norm * 4.0f - 2.0f);            // 0.25 to 4.0
+}
+float PitchSeqEditor::snapRatio (float ratio) const
+{
+    if (! snapEnabled) return ratio;
+    float best = kSnapRatios[0];
+    float bestDist = std::abs (std::log2 (ratio) - std::log2 (best));
+    for (float s : kSnapRatios)
+    {
+        float d = std::abs (std::log2 (ratio) - std::log2 (s));
+        if (d < bestDist) { bestDist = d; best = s; }
+    }
+    return best;
+}
+
+int PitchSeqEditor::nearestPoint (float x, float y) const
+{
+    int   best = -1;
+    float bestDist = 10.0f * 10.0f;  // 10 px radius squared
+    for (int i = 0; i < pattern.numPoints; ++i)
+    {
+        float dx = xFromBeat (pattern.points[i].timeBeat) - x;
+        float dy = yFromRatio (pattern.points[i].pitchRatio) - y;
+        float d  = dx * dx + dy * dy;
+        if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+}
+
+void PitchSeqEditor::notifyChange()  { if (onPatternChanged) onPatternChanged (pattern); }
+void PitchSeqEditor::setPattern      (const SeqPattern& p) { pattern = p; repaint(); }
+void PitchSeqEditor::setPlayheadBeat (float beat)          { if (playheadBeat != beat) { playheadBeat = beat; repaint(); } }
+
+void PitchSeqEditor::paint (juce::Graphics& g)
+{
+    const float w = (float) getWidth();
+    const float h = (float) getHeight();
+
+    g.fillAll (juce::Colour (0xff1a1a1a));
+
+    // Horizontal reference lines at each snap pitch
+    for (int i = 0; i < 5; ++i)
+    {
+        float ry = yFromRatio (kSnapRatios[i]);
+        bool isUnison = (i == 2);
+        g.setColour (isUnison ? juce::Colour (0xff2a2a2a) : juce::Colour (0xff222222));
+        g.drawHorizontalLine ((int) ry, 0.0f, w);
+
+        // Labels
+        g.setColour (juce::Colour (0xff444444));
+        g.setFont (juce::FontOptions (9.0f));
+        juce::String lbl = (kSnapLabels[i] >= 0 ? "+" : "") + juce::String ((int) kSnapLabels[i]);
+        g.drawText (lbl, 3, (int) ry - 9, 20, 10, juce::Justification::left, false);
+    }
+
+    // Vertical beat grid
+    g.setColour (juce::Colour (0xff242424));
+    for (float b = 1.0f; b < pattern.patternBeats; b += 1.0f)
+        g.drawVerticalLine ((int) xFromBeat (b), 0.0f, h);
+
+    // Pattern-end marker
+    g.setColour (juce::Colour (0xff333333));
+    g.drawVerticalLine ((int) w - 1, 0.0f, h);
+
+    // Polyline between breakpoints
+    if (pattern.numPoints >= 2)
+    {
+        // Main curve (sorted points)
+        juce::Path curve;
+        curve.startNewSubPath (xFromBeat (pattern.points[0].timeBeat),
+                               yFromRatio (pattern.points[0].pitchRatio));
+        for (int i = 1; i < pattern.numPoints; ++i)
+            curve.lineTo (xFromBeat (pattern.points[i].timeBeat),
+                          yFromRatio (pattern.points[i].pitchRatio));
+
+        g.setColour (juce::Colour (0xff00e676));
+        g.strokePath (curve, juce::PathStrokeType (1.5f));
+
+        // Wrap segment (last point → right edge, dashed; left edge → first point, dashed)
+        {
+            const auto& last  = pattern.points[pattern.numPoints - 1];
+            const auto& first = pattern.points[0];
+            float x0 = xFromBeat (last.timeBeat),  y0 = yFromRatio (last.pitchRatio);
+            float x1 = w,                           y1 = yFromRatio (first.pitchRatio);
+            float x2 = 0.0f,                        y2 = yFromRatio (first.pitchRatio);
+            float x3 = xFromBeat (first.timeBeat),  y3 = yFromRatio (first.pitchRatio);
+
+            juce::Path wrap;
+            wrap.startNewSubPath (x0, y0);  wrap.lineTo (x1, y1);
+            wrap.startNewSubPath (x2, y2);  wrap.lineTo (x3, y3);
+
+            juce::PathStrokeType dashed (1.0f);
+            float dashLengths[] = { 4.0f, 4.0f };
+            g.setColour (juce::Colour (0xff00e676).withAlpha (0.3f));
+            g.strokePath (wrap, dashed);
+        }
+    }
+    else if (pattern.numPoints == 1)
+    {
+        // Single point: just draw a horizontal line at that pitch
+        float y0 = yFromRatio (pattern.points[0].pitchRatio);
+        g.setColour (juce::Colour (0xff00e676).withAlpha (0.4f));
+        g.drawHorizontalLine ((int) y0, 0.0f, w);
+    }
+
+    // Control point circles
+    for (int i = 0; i < pattern.numPoints; ++i)
+    {
+        float cx = xFromBeat (pattern.points[i].timeBeat);
+        float cy = yFromRatio (pattern.points[i].pitchRatio);
+        bool isDrag = (i == dragPoint);
+        g.setColour (isDrag ? juce::Colours::white : juce::Colour (0xff00e676));
+        g.fillEllipse (cx - 5.0f, cy - 5.0f, 10.0f, 10.0f);
+        g.setColour (juce::Colour (0xff1a1a1a));
+        g.fillEllipse (cx - 3.0f, cy - 3.0f, 6.0f, 6.0f);
+    }
+
+    // Playhead
+    {
+        float phx = xFromBeat (playheadBeat);
+        g.setColour (juce::Colour (0xff00e676).withAlpha (0.5f));
+        g.drawVerticalLine ((int) phx, 0.0f, h);
+    }
+
+    g.setColour (juce::Colour (0xff333333));
+    g.drawRect (getLocalBounds(), 1);
+}
+
+void PitchSeqEditor::mouseDown (const juce::MouseEvent& e)
+{
+    const float x = (float) e.x;
+    const float y = (float) e.y;
+
+    if (e.mods.isRightButtonDown())
+    {
+        int hit = nearestPoint (x, y);
+        if (hit >= 0 && pattern.numPoints > 1)
+        {
+            for (int i = hit; i < pattern.numPoints - 1; ++i)
+                pattern.points[i] = pattern.points[i + 1];
+            --pattern.numPoints;
+            notifyChange();
+            repaint();
+        }
+        return;
+    }
+
+    int hit = nearestPoint (x, y);
+    if (hit >= 0)
+    {
+        dragPoint = hit;
+    }
+    else if (pattern.numPoints < MAX_SEQ_STEPS)
+    {
+        // Add new point at cursor position
+        float beat  = juce::jlimit (0.0f, pattern.patternBeats - 0.0001f, beatFromX (x));
+        float ratio = snapRatio (juce::jlimit (0.25f, 4.0f, ratioFromY (y)));
+        pattern.points[pattern.numPoints++] = { beat, ratio };
+        pattern.sortPoints();
+        // Find the new point after sort
+        dragPoint = -1;
+        for (int i = 0; i < pattern.numPoints; ++i)
+            if (std::abs (pattern.points[i].timeBeat - beat) < 0.0001f)
+                { dragPoint = i; break; }
+        notifyChange();
+        repaint();
+    }
+}
+
+void PitchSeqEditor::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragPoint < 0) return;
+
+    float beat  = juce::jlimit (0.0f, pattern.patternBeats - 0.0001f, beatFromX ((float) e.x));
+    float ratio = snapRatio (juce::jlimit (0.25f, 4.0f, ratioFromY ((float) e.y)));
+
+    pattern.points[dragPoint].timeBeat   = beat;
+    pattern.points[dragPoint].pitchRatio = ratio;
+    pattern.sortPoints();
+
+    // Re-find drag point after sort (it may have moved index)
+    for (int i = 0; i < pattern.numPoints; ++i)
+        if (std::abs (pattern.points[i].timeBeat - beat) < 0.0001f &&
+            std::abs (pattern.points[i].pitchRatio - ratio) < 0.00001f)
+            { dragPoint = i; break; }
+
+    notifyChange();
+    repaint();
+}
+
+void PitchSeqEditor::mouseUp (const juce::MouseEvent&)
+{
+    dragPoint = -1;
+}
+
+
 //==============================================================================
 Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Granular_fx_testAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p),
@@ -26,7 +241,7 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
       panScatterAttachment      (p.apvts, "pan_scatter",       panScatterSlider),
       dryWetAttachment          (p.apvts, "dry_wet",           dryWetSlider),
       reverseAttachment         (p.apvts, "reverse",           reverseButton),
-      seqLengthAttachment       (p.apvts, "seq_length",        seqLengthSlider),
+      // seqLengthAttachment  (p.apvts, "seq_length", seqLengthSlider),  // old APVTS attachment
       densitySyncAttachment     (p.apvts, "density_sync",      densitySyncButton),
       sizeSyncAttachment        (p.apvts, "size_sync",         sizeSyncButton),
       densityDivisionAttachment (p.apvts, "density_division",  densityDivisionBox),
@@ -91,46 +306,46 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     addAndMakeVisible (densityDivisionBox);
     addAndMakeVisible (sizeDivisionBox);
 
-    // Pitch sequencer section
-    seqHeaderLabel.setText ("PITCH SEQ", juce::dontSendNotification);
+    // ---- Old slider-based sequencer setup (replaced by PitchSeqEditor) ----
+    // seqHeaderLabel / seqLengthSlider / seqStepSliders / seqStepAttachments setup removed.
+    // Code preserved in PluginEditor.h and the old GranularProcessor APVTS paths above.
+
+    // Graphical pitch envelope
+    seqHeaderLabel.setText ("PITCH ENV", juce::dontSendNotification);
     seqHeaderLabel.setJustificationType (juce::Justification::left);
     seqHeaderLabel.setFont (juce::FontOptions (10.0f));
     seqHeaderLabel.setColour (juce::Label::textColourId, juce::Colour (0xff888888));
     addAndMakeVisible (seqHeaderLabel);
 
-    // Length dial — same compact style as other dials but narrower.
-    seqLengthSlider.setSliderStyle (juce::Slider::LinearVertical);
-    seqLengthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, true, WEIGHT_W, 14);
-    seqLengthSlider.setColour (juce::Slider::textBoxTextColourId,       juce::Colour (0xffdddddd));
-    seqLengthSlider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour (0xff1c1c1c));
-    addAndMakeVisible (seqLengthSlider);
+    seqEditor.setPattern (p.getPattern());
+    seqEditor.onPatternChanged = [&p] (const SeqPattern& pat) { p.setPattern (pat); };
+    addAndMakeVisible (seqEditor);
 
-    seqLengthLabel.setText ("LEN", juce::dontSendNotification);
-    seqLengthLabel.setJustificationType (juce::Justification::centred);
-    seqLengthLabel.setFont (juce::FontOptions (11.0f));
-    addAndMakeVisible (seqLengthLabel);
+    snapButton.setClickingTogglesState (true);
+    snapButton.onClick = [this] { seqEditor.snapEnabled = snapButton.getToggleState(); };
+    addAndMakeVisible (snapButton);
 
-    static const char* pitchNames[] = { "-2", "-1", "0", "+1", "+2" };
-
-    for (int i = 0; i < 8; ++i)
     {
-        seqStepSliders[i].setSliderStyle (juce::Slider::LinearVertical);
-        seqStepSliders[i].setTextBoxStyle (juce::Slider::TextBoxBelow, true, WEIGHT_W, 14);
-        seqStepSliders[i].setColour (juce::Slider::textBoxTextColourId,       juce::Colour (0xffdddddd));
-        seqStepSliders[i].setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour (0xff1c1c1c));
-        seqStepSliders[i].textFromValueFunction = [] (double v) -> juce::String {
-            return pitchNames[juce::jlimit (0, 4, (int) std::round (v))];
-        };
-        addAndMakeVisible (seqStepSliders[i]);
-
-        seqStepLabels[i].setText (juce::String (i + 1), juce::dontSendNotification);
-        seqStepLabels[i].setJustificationType (juce::Justification::centred);
-        seqStepLabels[i].setFont (juce::FontOptions (11.0f));
-        addAndMakeVisible (seqStepLabels[i]);
-
-        seqStepAttachments[i] = std::make_unique<SliderAttachment> (
-            p.apvts, "seq_step_" + juce::String (i), seqStepSliders[i]);
+        const float pb = p.getPattern().patternBeats;
+        patternLenButton.setButtonText (juce::String ((int) pb) + " BEATS");
     }
+    patternLenButton.onClick = [this, &p]
+    {
+        static const float kLengths[] = { 1.0f, 2.0f, 4.0f, 8.0f };
+        SeqPattern pat = p.getPattern();
+        int idx = 2;
+        for (int i = 0; i < 4; ++i)
+            if (std::abs (pat.patternBeats - kLengths[i]) < 0.01f) idx = i;
+        idx = (idx + 1) % 4;
+        pat.patternBeats = kLengths[idx];
+        for (int i = 0; i < pat.numPoints; ++i)
+            pat.points[i].timeBeat = juce::jlimit (0.0f, pat.patternBeats - 0.0001f, pat.points[i].timeBeat);
+        pat.sortPoints();
+        p.setPattern (pat);
+        seqEditor.setPattern (pat);
+        patternLenButton.setButtonText (juce::String ((int) kLengths[idx]) + " BEATS");
+    };
+    addAndMakeVisible (patternLenButton);
 
     // Cache sync param pointers so timerCallback can read them without a hash lookup.
     densitySyncParam = p.apvts.getRawParameterValue ("density_sync");
@@ -140,7 +355,9 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     startTimerHz (10);
 
     setSize (PADDING + (NUM_CONTROLS + 1) * (DIAL_SIZE + PADDING),
-             PADDING * 4 + LABEL_HEIGHT * 3 + (DIAL_SIZE + 16) + (DIAL_SIZE + 14) + 44);
+             PADDING + LABEL_HEIGHT + DIAL_SIZE + 16   // dial row
+             + PADDING + 20 + 4 + 20                  // sync row (toggle + gap + combo)
+             + PADDING + LABEL_HEIGHT + 120 + PADDING); // env header + editor + bottom
 }
 
 Granular_fx_testAudioProcessorEditor::~Granular_fx_testAudioProcessorEditor()
@@ -163,6 +380,8 @@ void Granular_fx_testAudioProcessorEditor::timerCallback()
 
     grainSizeSlider.setEnabled     (!sizeSync);
     sizeDivisionBox.setEnabled     (sizeSync);
+
+    seqEditor.setPlayheadBeat (audioProcessor.getPlayheadBeat());
 }
 
 //==============================================================================
@@ -214,22 +433,15 @@ void Granular_fx_testAudioProcessorEditor::resized()
     densitySyncButton.setBounds (densityX, syncRowY,                      DIAL_SIZE, toggleH);
     densityDivisionBox.setBounds(densityX, syncRowY + toggleH + comboGap,  DIAL_SIZE, comboH);
 
-    // Pitch sequencer — below the sync controls.
-    const int seqRowY = syncRowY + toggleH + comboGap + comboH + PADDING;
+    // Graphical pitch envelope — below the sync controls.
+    const int seqRowY     = syncRowY + toggleH + comboGap + comboH + PADDING;
+    const int seqEditorH  = 120;
+    const int editorWidth = getWidth() - PADDING * 2;
 
-    seqHeaderLabel.setBounds (PADDING, seqRowY, 80, LABEL_HEIGHT);
+    // Header row: label on left, length button and snap button on right
+    seqHeaderLabel.setBounds    (PADDING,              seqRowY, editorWidth - 160, LABEL_HEIGHT);
+    patternLenButton.setBounds  (getWidth() - PADDING - 100 - 4 - 56, seqRowY, 100, LABEL_HEIGHT);
+    snapButton.setBounds        (getWidth() - PADDING - 56,            seqRowY,  56, LABEL_HEIGHT);
 
-    // Length slider sits to the right of the header, same height as step sliders.
-    const int lenX = PADDING + 80 + WEIGHT_GAP;
-    seqLengthLabel.setBounds  (lenX, seqRowY,                              WEIGHT_W, LABEL_HEIGHT);
-    seqLengthSlider.setBounds (lenX, seqRowY + LABEL_HEIGHT + LABEL_HEIGHT, WEIGHT_W, DIAL_SIZE + 14);
-
-    // Step sliders start after a small gap following the length slider.
-    int sx = lenX + WEIGHT_W + WEIGHT_GAP * 3;
-    for (int i = 0; i < 8; ++i)
-    {
-        seqStepLabels[i].setBounds  (sx, seqRowY + LABEL_HEIGHT,               WEIGHT_W, LABEL_HEIGHT);
-        seqStepSliders[i].setBounds (sx, seqRowY + LABEL_HEIGHT + LABEL_HEIGHT, WEIGHT_W, DIAL_SIZE + 14);
-        sx += WEIGHT_W + WEIGHT_GAP;
-    }
+    seqEditor.setBounds (PADDING, seqRowY + LABEL_HEIGHT, editorWidth, seqEditorH);
 }
