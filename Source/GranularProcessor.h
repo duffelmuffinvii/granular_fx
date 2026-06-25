@@ -258,7 +258,8 @@ public:
     //   4. Advances all active grains and sums their output.
     //   5. Mixes the granular result with the dry signal.
     // --------------------------------------------------------
-    void processBlock (juce::AudioBuffer<float>& buffer, int numChannels, double bpm = 120.0)
+    void processBlock (juce::AudioBuffer<float>& buffer, int numChannels,
+                       double bpm = 120.0, bool isPlaying = false, double ppqPosition = -1.0)
     {
         // Guard against prepareToPlay not having been called yet.
         if (grainSizeParam == nullptr)
@@ -277,6 +278,26 @@ public:
         const float patternTotalBeats = juce::jmax (0.001f, activePattern.patternBeats);
 
         const float beatsPerSample = static_cast<float> (bpm) / (60.0f * static_cast<float> (currentSampleRate));
+
+        // Determine how pattern position should advance this block:
+        //   - Host playing + PPQ available  → anchor to host timeline
+        //   - Host not playing + no audio   → freeze
+        //   - Everything else               → free-running accumulator
+        const bool hasPpq    = (ppqPosition >= 0.0);
+        const bool hasAudio  = buffer.getMagnitude (0, numSamples) > 0.00001f;
+        const bool shouldRun = isPlaying || hasAudio;
+
+        if (hasPpq && isPlaying)
+        {
+            patternBeatPos = std::fmod (static_cast<float> (ppqPosition), patternTotalBeats);
+            if (patternBeatPos < 0.0f) patternBeatPos += patternTotalBeats;
+        }
+        else if (shouldRun && !wasRunning)
+        {
+            patternBeatPos = 0.0f;
+        }
+
+        wasRunning = shouldRun;
 
         // Division table: each entry is a fraction of a quarter note (beat).
         // duration_ms  = fraction * 60000 / bpm
@@ -339,10 +360,13 @@ public:
 
             writePos = (writePos + 1) % bufLen;
 
-            // Advance pattern beat position every sample.
-            patternBeatPos += beatsPerSample;
-            if (patternBeatPos >= patternTotalBeats)
-                patternBeatPos -= patternTotalBeats;
+            // Advance pattern beat position — skipped when frozen (not playing, no audio).
+            if (shouldRun)
+            {
+                patternBeatPos += beatsPerSample;
+                if (patternBeatPos >= patternTotalBeats)
+                    patternBeatPos = std::fmod (patternBeatPos, patternTotalBeats);
+            }
 
             // Step 2: Check if it's time to spawn a new grain.
             samplesSinceLastGrain += 1.0f;
@@ -542,6 +566,7 @@ private:
     SeqPattern   activePattern;             // read by audio thread only
     bool         patternDirty   = false;    // set by setPattern(), cleared in processBlock
     float        patternBeatPos = 0.0f;     // current beat position within the pattern
+    bool         wasRunning     = false;    // tracks audio/play state across blocks for reset-on-start
     std::atomic<float> playheadBeat { 0.0f }; // current beat position, read by UI for playhead
 
     // int currentStep = 0;  // old stepped-sequencer counter — replaced by patternBeatPos

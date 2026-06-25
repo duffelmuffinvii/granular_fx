@@ -231,14 +231,19 @@ void Granular_fx_testAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // Get host tempo for tempo-sync features. Falls back to 120 BPM if unavailable.
-    double bpm = 120.0;
+    double bpm         = 120.0;
+    bool   isPlaying   = false;
+    double ppqPosition = -1.0;
+
     if (auto* ph = getPlayHead())
         if (auto pos = ph->getPosition())
-            if (pos->getBpm().hasValue())
-                bpm = *pos->getBpm();
+        {
+            if (pos->getBpm().hasValue())         bpm         = *pos->getBpm();
+            if (pos->getIsPlaying())              isPlaying   = true;
+            if (pos->getPpqPosition().hasValue()) ppqPosition = *pos->getPpqPosition();
+        }
 
-    granularProcessor.processBlock (buffer, totalNumInputChannels, bpm);
+    granularProcessor.processBlock (buffer, totalNumInputChannels, bpm, isPlaying, ppqPosition);
 }
 
 //==============================================================================
