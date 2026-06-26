@@ -14,8 +14,6 @@ static constexpr int LABEL_HEIGHT  = 20;
 static constexpr int PADDING       = 16;
 static constexpr int NUM_CONTROLS  = 5;  // dials in the main row (dry/wet moved to left column)
 static constexpr int DW_W          = 36; // width of the dry/wet slider column
-static constexpr int WEIGHT_W      = 34;  // width of each pitch weight slider
-static constexpr int WEIGHT_GAP    = 4;   // gap between weight sliders
 
 // ============================================================================
 // PitchSeqEditor implementation
@@ -242,7 +240,6 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
       panScatterAttachment      (p.apvts, "pan_scatter",       panScatterSlider),
       dryWetAttachment          (p.apvts, "dry_wet",           dryWetSlider),
       reverseAttachment         (p.apvts, "reverse",           reverseButton),
-      // seqLengthAttachment  (p.apvts, "seq_length", seqLengthSlider),  // old APVTS attachment
       densitySyncAttachment     (p.apvts, "density_sync",      densitySyncButton),
       sizeSyncAttachment        (p.apvts, "size_sync",         sizeSyncButton),
       densityDivisionAttachment (p.apvts, "density_division",  densityDivisionBox),
@@ -312,10 +309,6 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
 
     addAndMakeVisible (densityDivisionBox);
     addAndMakeVisible (sizeDivisionBox);
-
-    // ---- Old slider-based sequencer setup (replaced by PitchSeqEditor) ----
-    // seqHeaderLabel / seqLengthSlider / seqStepSliders / seqStepAttachments setup removed.
-    // Code preserved in PluginEditor.h and the old GranularProcessor APVTS paths above.
 
     // Graphical pitch envelope
     seqHeaderLabel.setText ("PITCH ENV", juce::dontSendNotification);

@@ -86,20 +86,6 @@ Granular_fx_testAudioProcessor::createParameterLayout()
         juce::ParameterID ("size_division", 1), "Size Division",
         juce::StringArray { "1/32", "1/16", "1/8", "1/4", "1/2", "1/1" }, 3));  // default 1/4
 
-    // ---- Pitch sequencer parameters removed ----
-    // The pattern now lives outside APVTS and is serialised manually in
-    // getStateInformation / setStateInformation below.
-    //
-    // Old APVTS-based params (preserved for reference):
-    // layout.add (std::make_unique<juce::AudioParameterFloat> (
-    //     juce::ParameterID ("seq_length", 1), "Seq Length",
-    //     juce::NormalisableRange<float> (1.0f, 8.0f, 1.0f), 4.0f));
-    // for (int i = 0; i < 8; ++i)
-    //     layout.add (std::make_unique<juce::AudioParameterFloat> (
-    //         juce::ParameterID ("seq_step_" + juce::String (i), 1),
-    //         "Seq Step " + juce::String (i + 1),
-    //         juce::NormalisableRange<float> (0.0f, 4.0f, 1.0f), 2.0f));
-
     return layout;
 }
 

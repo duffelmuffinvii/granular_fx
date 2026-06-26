@@ -278,14 +278,6 @@ private:
     juce::ToggleButton reverseButton;
     juce::Label        reverseLabel;
 
-    // Pitch probability weights — one dial per octave option
-    // ---- Old slider-based sequencer controls (replaced by PitchSeqEditor) ----
-    // juce::Label  seqHeaderLabel;
-    // juce::Slider seqLengthSlider;
-    // juce::Label  seqLengthLabel;
-    // juce::Slider seqStepSliders[8];
-    // juce::Label  seqStepLabels[8];
-
     PitchSeqEditor  seqEditor;
     juce::Label     seqHeaderLabel;
     juce::TextButton snapButton     { "SNAP" };
@@ -311,8 +303,6 @@ private:
     SliderAttachment   panScatterAttachment;
     SliderAttachment   dryWetAttachment;
     ButtonAttachment   reverseAttachment;
-    // SliderAttachment   seqLengthAttachment;            // old APVTS-based attachments
-    // std::unique_ptr<SliderAttachment> seqStepAttachments[8];
     ButtonAttachment   densitySyncAttachment;
     ButtonAttachment   sizeSyncAttachment;
     ComboBoxAttachment densityDivisionAttachment;
