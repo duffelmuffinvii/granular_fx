@@ -351,8 +351,8 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     densitySyncParam = p.apvts.getRawParameterValue ("density_sync");
     sizeSyncParam    = p.apvts.getRawParameterValue ("size_sync");
 
-    // Poll every ~100 ms to grey out / restore dials as sync toggles change.
-    startTimerHz (10);
+    startTimer (kSyncPollTimer, 100);   // 10 Hz — grey out / restore sync controls
+    startTimer (kPlayheadTimer,  33);   // ~30 Hz — playhead line update
 
     setSize (DW_W + PADDING + (NUM_CONTROLS + 1) * (DIAL_SIZE + PADDING),
              PADDING + LABEL_HEIGHT + DIAL_SIZE + 16   // dial row
@@ -362,26 +362,30 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
 
 Granular_fx_testAudioProcessorEditor::~Granular_fx_testAudioProcessorEditor()
 {
-    stopTimer();
+    stopTimer (kSyncPollTimer);
+    stopTimer (kPlayheadTimer);
     // Must clear the LookAndFeel before it is destroyed, otherwise child
     // components may try to use a dangling pointer during teardown.
     setLookAndFeel (nullptr);
 }
 
-void Granular_fx_testAudioProcessorEditor::timerCallback()
+void Granular_fx_testAudioProcessorEditor::timerCallback (int timerID)
 {
-    // Enable/disable dials and combo boxes based on sync toggle state.
-    // When sync is on, the dial is greyed out and the division combo is active.
-    const bool densitySync = densitySyncParam && densitySyncParam->load() >= 0.5f;
-    const bool sizeSync    = sizeSyncParam    && sizeSyncParam->load()    >= 0.5f;
+    if (timerID == kSyncPollTimer)
+    {
+        const bool densitySync = densitySyncParam && densitySyncParam->load() >= 0.5f;
+        const bool sizeSync    = sizeSyncParam    && sizeSyncParam->load()    >= 0.5f;
 
-    grainDensitySlider.setEnabled  (!densitySync);
-    densityDivisionBox.setEnabled  (densitySync);
+        grainDensitySlider.setEnabled (!densitySync);
+        densityDivisionBox.setEnabled (densitySync);
 
-    grainSizeSlider.setEnabled     (!sizeSync);
-    sizeDivisionBox.setEnabled     (sizeSync);
-
-    seqEditor.setPlayheadBeat (audioProcessor.getPlayheadBeat());
+        grainSizeSlider.setEnabled    (!sizeSync);
+        sizeDivisionBox.setEnabled    (sizeSync);
+    }
+    else if (timerID == kPlayheadTimer)
+    {
+        seqEditor.setPlayheadBeat (audioProcessor.getPlayheadBeat());
+    }
 }
 
 //==============================================================================

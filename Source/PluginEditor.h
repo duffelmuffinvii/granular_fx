@@ -242,7 +242,7 @@ private:
 
 //==============================================================================
 class Granular_fx_testAudioProcessorEditor  : public juce::AudioProcessorEditor,
-                                               private juce::Timer
+                                               private juce::MultiTimer
 {
 public:
     Granular_fx_testAudioProcessorEditor (Granular_fx_testAudioProcessor&);
@@ -253,7 +253,8 @@ public:
     void resized() override;
 
 private:
-    void timerCallback() override;
+    enum TimerID { kSyncPollTimer = 0, kPlayheadTimer = 1 };
+    void timerCallback (int timerID) override;
 
     Granular_fx_testAudioProcessor& audioProcessor;
 

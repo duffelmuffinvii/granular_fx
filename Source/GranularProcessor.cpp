@@ -193,7 +193,7 @@ void GranularProcessor::processBlock (juce::AudioBuffer<float>& buffer, int numC
                 playheadBeat.store (patternBeatPos);
             }
 
-            spawnGrain (bufLen, grainSizeMs, selectedPitch, positionScatter, sizeScatter, panScatter, reverse);
+            spawnGrain (bufLen, { grainSizeMs, selectedPitch, positionScatter, sizeScatter, panScatter, reverse });
         }
 
         for (auto& grain : grains)
@@ -255,8 +255,7 @@ void GranularProcessor::processBlock (juce::AudioBuffer<float>& buffer, int numC
     }
 }
 
-void GranularProcessor::spawnGrain (int bufLen, float grainSizeMs, float pitchRatio,
-                                    float positionScatter, float sizeScatter, float panScatter, bool reverse)
+void GranularProcessor::spawnGrain (int bufLen, const SpawnParams& p)
 {
     Grain* slot = nullptr;
     for (auto& g : grains)
@@ -266,21 +265,18 @@ void GranularProcessor::spawnGrain (int bufLen, float grainSizeMs, float pitchRa
     if (slot == nullptr)
         return;
 
-    float baseDuration = (grainSizeMs / 1000.0f) * static_cast<float> (currentSampleRate);
+    float baseDuration = (p.grainSizeMs / 1000.0f) * static_cast<float> (currentSampleRate);
 
-    float r0 = static_cast<float> (rng()) / static_cast<float> (0xFFFFFFFFu);
     slot->durationSamples = juce::jmax (1, static_cast<int> (
-        baseDuration * (1.0f - sizeScatter + 2.0f * sizeScatter * r0)));
+        baseDuration * (1.0f - p.sizeScatter + 2.0f * p.sizeScatter * randF())));
 
-    float r1 = static_cast<float> (rng()) / static_cast<float> (0xFFFFFFFFu);
-    int lookback = static_cast<int> (baseDuration + r1 * positionScatter * bufLen);
+    int lookback = static_cast<int> (baseDuration + randF() * p.positionScatter * bufLen);
     lookback = juce::jmin (lookback, bufLen - 1);
     slot->readPos = static_cast<float> ((writePos - lookback + bufLen) % bufLen);
 
-    slot->speed = reverse ? -pitchRatio : pitchRatio;
+    slot->speed = p.reverse ? -p.pitchRatio : p.pitchRatio;
 
-    float r2 = static_cast<float> (rng()) / static_cast<float> (0xFFFFFFFFu);
-    slot->pan = -panScatter + 2.0f * panScatter * r2;
+    slot->pan = -p.panScatter + 2.0f * p.panScatter * randF();
 
     float panAngle  = (slot->pan + 1.0f) * 0.25f * juce::MathConstants<float>::pi;
     slot->leftGain  = std::cos (panAngle);

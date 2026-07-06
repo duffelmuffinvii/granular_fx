@@ -91,6 +91,16 @@ struct Grain
     bool  active          = false;
 };
 
+struct SpawnParams
+{
+    float grainSizeMs      = 80.0f;
+    float pitchRatio       = 1.0f;
+    float positionScatter  = 0.0f;
+    float sizeScatter      = 0.0f;
+    float panScatter       = 0.0f;
+    bool  reverse          = false;
+};
+
 class GranularProcessor
 {
 public:
@@ -107,8 +117,9 @@ public:
                        double bpm = 120.0, bool isPlaying = false, double ppqPosition = -1.0);
 
 private:
-    void spawnGrain (int bufLen, float grainSizeMs, float pitchRatio,
-                     float positionScatter, float sizeScatter, float panScatter, bool reverse);
+    void spawnGrain (int bufLen, const SpawnParams& p);
+
+    float randF() { return static_cast<float> (rng()) / static_cast<float> (0xFFFFFFFFu); }
 
     std::atomic<float>* grainSizeParam       = nullptr;
     std::atomic<float>* grainDensityParam    = nullptr;
