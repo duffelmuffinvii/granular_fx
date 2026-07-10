@@ -77,14 +77,31 @@ Granular_fx_testAudioProcessor::createParameterLayout()
         juce::ParameterID ("size_sync", 1), "Size Sync", false));
 
     // Which subdivision to use when sync is on.
-    // Index maps to: 0=1/32, 1=1/16, 2=1/8, 3=1/4, 4=1/2, 5=1/1.
-    // The fraction is relative to a quarter note (beat).
+    // Choices come from kTempoDivisions (GranularProcessor.h), the single
+    // source of truth for the subdivision list and its beat fractions.
+    juce::StringArray divisionChoices;
+    for (auto& d : kTempoDivisions)
+        divisionChoices.add (d.label);
+
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID ("density_division", 1), "Density Division",
-        juce::StringArray { "1/32", "1/16", "1/8", "1/4", "1/2", "1/1" }, 2));  // default 1/8
+        divisionChoices, 2));  // default 1/8
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID ("size_division", 1), "Size Division",
-        juce::StringArray { "1/32", "1/16", "1/8", "1/4", "1/2", "1/1" }, 3));  // default 1/4
+        divisionChoices, 3));  // default 1/4
+
+    // ---- RHYTHM FX (experimental — see GranularProcessor::maybeSpawnGrain()
+    //      to remove). Both default to a no-op value so existing presets
+    //      and behaviour are unaffected unless a user moves these off default.
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID ("spawn_probability", 1), "Spawn Probability",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f),
+        1.0f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID ("swing", 1), "Swing",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f),
+        0.0f));
+    // ---- end RHYTHM FX ----
 
     return layout;
 }

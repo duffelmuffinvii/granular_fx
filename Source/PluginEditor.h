@@ -269,12 +269,28 @@ private:
     juce::Slider panScatterSlider;
     juce::Slider dryWetSlider;
 
+    // ---- RHYTHM FX (experimental — see GranularProcessor::maybeSpawnGrain()) ----
+    juce::Slider spawnProbabilitySlider;
+    juce::Slider swingSlider;
+    // ---- end RHYTHM FX ----
+
     juce::Label grainSizeLabel;
     juce::Label grainDensityLabel;
     juce::Label positionScatterLabel;
     juce::Label sizeScatterLabel;
     juce::Label panScatterLabel;
     juce::Label dryWetLabel;
+
+    // ---- RHYTHM FX ----
+    juce::Label spawnProbabilityLabel;
+    juce::Label swingLabel;
+    // ---- end RHYTHM FX ----
+
+    // Small captions above each functional cluster of dials — GRAIN and
+    // SCATTER above the main dial row, RHYTHM above the rhythm dial row.
+    juce::Label grainGroupLabel;
+    juce::Label scatterGroupLabel;
+    juce::Label rhythmGroupLabel;   // RHYTHM FX, experimental
 
     juce::ToggleButton reverseButton;
     juce::Label        reverseLabel;
@@ -303,6 +319,12 @@ private:
     SliderAttachment   sizeScatterAttachment;
     SliderAttachment   panScatterAttachment;
     SliderAttachment   dryWetAttachment;
+
+    // ---- RHYTHM FX ----
+    SliderAttachment   spawnProbabilityAttachment;
+    SliderAttachment   swingAttachment;
+    // ---- end RHYTHM FX ----
+
     ButtonAttachment   reverseAttachment;
     ButtonAttachment   densitySyncAttachment;
     ButtonAttachment   sizeSyncAttachment;

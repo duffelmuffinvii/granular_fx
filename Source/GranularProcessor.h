@@ -14,6 +14,12 @@
     "pan_scatter"       — random variation in stereo pan      (0–1)
     "dry_wet"           — dry/wet mix                         (0–1)
 
+    "spawn_probability" — (RHYTHM FX, experimental) chance a due grain
+                           actually fires. 1 = always (no-op, default).
+    "swing"              — (RHYTHM FX, experimental) delays every other
+                           grain by this fraction of the spawn interval.
+                           0 = no-op (default). See maybeSpawnGrain().
+
   FIXED CONSTANTS (require recompile to change):
     BUFFER_DURATION_SECONDS — seconds of audio held in the circular buffer
     MAX_GRAINS              — maximum simultaneous grains
@@ -44,6 +50,31 @@ static constexpr int HANN_TABLE_SIZE = 1024;
 
 // Maximum steps in the pattern-based sequencer.
 static constexpr int MAX_SEQ_STEPS = 32;
+
+// ============================================================
+//  TEMPO SYNC DIVISIONS
+//
+//  Single source of truth for the subdivisions offered by the
+//  density_division / size_division choice parameters. beatFraction
+//  is relative to a quarter-note beat (e.g. 1/4 == 1.0f beat).
+// ============================================================
+
+struct TempoDivision
+{
+    const char* label;
+    float       beatFraction;
+};
+
+static constexpr TempoDivision kTempoDivisions[] = {
+    { "1/32", 0.125f },
+    { "1/16", 0.25f  },
+    { "1/8",  0.5f   },
+    { "1/4",  1.0f   },
+    { "1/2",  2.0f   },
+    { "1/1",  4.0f   },
+};
+
+static constexpr int kNumTempoDivisions = (int) (sizeof (kTempoDivisions) / sizeof (kTempoDivisions[0]));
 
 // ============================================================
 //  PITCH ENVELOPE DATA
@@ -101,6 +132,27 @@ struct SpawnParams
     bool  reverse          = false;
 };
 
+// Grain-synthesis parameters resolved once per audio block from the cached
+// atomic pointers (tempo-sync branching for grain size/density already
+// applied). Passed into the per-sample loop so it doesn't re-read atomics
+// or re-run the sync logic on every sample.
+struct BlockParams
+{
+    float grainSizeMs     = 80.0f;
+    bool  reverse         = false;
+    float positionScatter = 0.0f;
+    float sizeScatter     = 0.0f;
+    float panScatter      = 0.0f;
+    float dryWet          = 0.8f;
+    float samplesPerGrain = 0.0f;
+    float wetGain         = 1.0f;
+
+    // ---- RHYTHM FX (experimental — see maybeSpawnGrain() to remove) ----
+    float spawnProbability = 1.0f;  // 1 = always spawn a due grain (no-op)
+    float swingAmount      = 0.0f;  // 0 = no swing (no-op)
+    // ---- end RHYTHM FX ----
+};
+
 class GranularProcessor
 {
 public:
@@ -117,7 +169,10 @@ public:
                        double bpm = 120.0, bool isPlaying = false, double ppqPosition = -1.0);
 
 private:
-    void spawnGrain (int bufLen, const SpawnParams& p);
+    void        spawnGrain         (int bufLen, const SpawnParams& p);
+    float       getPitchAtBeat     (float beat) const;
+    BlockParams resolveBlockParams (double bpm) const;
+    void        maybeSpawnGrain    (int bufLen, const BlockParams& bp);
 
     float randF() { return static_cast<float> (rng()) / static_cast<float> (0xFFFFFFFFu); }
 
@@ -132,6 +187,12 @@ private:
     std::atomic<float>* sizeSyncParam        = nullptr;
     std::atomic<float>* densityDivisionParam = nullptr;
     std::atomic<float>* sizeDivisionParam    = nullptr;
+
+    // ---- RHYTHM FX (experimental — see maybeSpawnGrain() to remove) ----
+    std::atomic<float>* spawnProbabilityParam = nullptr;
+    std::atomic<float>* swingParam            = nullptr;
+    bool                 grainParity          = false;  // alternates each spawn, used for swing
+    // ---- end RHYTHM FX ----
 
     mutable juce::CriticalSection patternLock;
     SeqPattern   pendingPattern;

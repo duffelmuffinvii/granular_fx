@@ -12,8 +12,19 @@
 static constexpr int DIAL_SIZE     = 80;
 static constexpr int LABEL_HEIGHT  = 20;
 static constexpr int PADDING       = 16;
-static constexpr int NUM_CONTROLS  = 5;  // dials in the main row (dry/wet moved to left column)
 static constexpr int DW_W          = 36; // width of the dry/wet slider column
+
+// Small caption row above each functional group of dials (GRAIN, SCATTER, RHYTHM).
+static constexpr int GROUP_LABEL_HEIGHT = 14;
+
+// Main dial row: GRAIN (grain size, density) + SCATTER (position, size, pan) + Reverse.
+// Slot count feeds the window-width calculation in the constructor's setSize().
+static constexpr int MAIN_ROW_SLOTS      = 6;  // 2 grain + 3 scatter + 1 reverse
+static constexpr int MAIN_ROW_GROUP_GAPS = 2;  // extra gap before SCATTER and before Reverse
+
+// RHYTHM dial row (spawn probability + swing, 2 slots) — lives near the pitch
+// envelope rather than the main row, since both are about timing/rhythm feel.
+// (RHYTHM FX, experimental — see GranularProcessor::maybeSpawnGrain())
 
 // ============================================================================
 // PitchSeqEditor implementation
@@ -239,6 +250,8 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
       sizeScatterAttachment     (p.apvts, "size_scatter",      sizeScatterSlider),
       panScatterAttachment      (p.apvts, "pan_scatter",       panScatterSlider),
       dryWetAttachment          (p.apvts, "dry_wet",           dryWetSlider),
+      spawnProbabilityAttachment (p.apvts, "spawn_probability", spawnProbabilitySlider),  // RHYTHM FX
+      swingAttachment             (p.apvts, "swing",             swingSlider),             // RHYTHM FX
       reverseAttachment         (p.apvts, "reverse",           reverseButton),
       densitySyncAttachment     (p.apvts, "density_sync",      densitySyncButton),
       sizeSyncAttachment        (p.apvts, "size_sync",         sizeSyncButton),
@@ -267,6 +280,24 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     setupDial (positionScatterSlider, positionScatterLabel, "Pos Scatter");
     setupDial (sizeScatterSlider,     sizeScatterLabel,     "Size Scatter");
     setupDial (panScatterSlider,      panScatterLabel,      "Pan Scatter");
+
+    // ---- RHYTHM FX (experimental — see GranularProcessor::maybeSpawnGrain()) ----
+    setupDial (spawnProbabilitySlider, spawnProbabilityLabel, "Spawn Prob");
+    setupDial (swingSlider,            swingLabel,             "Swing");
+    // ---- end RHYTHM FX ----
+
+    auto setupGroupLabel = [this] (juce::Label& label, const juce::String& text)
+    {
+        label.setText (text, juce::dontSendNotification);
+        label.setJustificationType (juce::Justification::centred);
+        label.setFont (juce::FontOptions (10.0f));
+        label.setColour (juce::Label::textColourId, juce::Colour (0xff888888));
+        addAndMakeVisible (label);
+    };
+    setupGroupLabel (grainGroupLabel,   "GRAIN");
+    setupGroupLabel (scatterGroupLabel, "SCATTER");
+    setupGroupLabel (rhythmGroupLabel,  "RHYTHM");   // RHYTHM FX, experimental
+
     dryWetSlider.setSliderStyle (juce::Slider::LinearVertical);
     dryWetSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     addAndMakeVisible (dryWetSlider);
@@ -294,12 +325,8 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     // ComboBoxAttachment only syncs selection — it does not add items.
     auto setupDivisionBox = [&] (juce::ComboBox& box, const juce::String& paramId)
     {
-        box.addItem ("1/32", 1);
-        box.addItem ("1/16", 2);
-        box.addItem ("1/8",  3);
-        box.addItem ("1/4",  4);
-        box.addItem ("1/2",  5);
-        box.addItem ("1/1",  6);
+        for (int i = 0; i < kNumTempoDivisions; ++i)
+            box.addItem (kTempoDivisions[i].label, i + 1);
         // Sync initial selection to the current parameter value.
         int idx = static_cast<int> (*p.apvts.getRawParameterValue (paramId));
         box.setSelectedId (idx + 1, juce::dontSendNotification);
@@ -354,10 +381,11 @@ Granular_fx_testAudioProcessorEditor::Granular_fx_testAudioProcessorEditor (Gran
     startTimer (kSyncPollTimer, 100);   // 10 Hz — grey out / restore sync controls
     startTimer (kPlayheadTimer,  33);   // ~30 Hz — playhead line update
 
-    setSize (DW_W + PADDING + (NUM_CONTROLS + 1) * (DIAL_SIZE + PADDING),
-             PADDING + LABEL_HEIGHT + DIAL_SIZE + 16   // dial row
-             + PADDING + 20 + 4 + 20                  // sync row (toggle + gap + combo)
-             + PADDING + LABEL_HEIGHT + 120 + PADDING); // env header + editor + bottom
+    setSize (DW_W + PADDING + MAIN_ROW_SLOTS * (DIAL_SIZE + PADDING) + MAIN_ROW_GROUP_GAPS * PADDING,
+             PADDING + GROUP_LABEL_HEIGHT + LABEL_HEIGHT + DIAL_SIZE + 16   // GRAIN/SCATTER caption + dial row
+             + PADDING + 20 + 4 + 20                                       // sync row (toggle + gap + combo)
+             + PADDING + GROUP_LABEL_HEIGHT + LABEL_HEIGHT + DIAL_SIZE + 16 // RHYTHM caption + dial row
+             + PADDING + LABEL_HEIGHT + 120 + PADDING);                    // env header + editor + bottom
 }
 
 Granular_fx_testAudioProcessorEditor::~Granular_fx_testAudioProcessorEditor()
@@ -392,6 +420,20 @@ void Granular_fx_testAudioProcessorEditor::timerCallback (int timerID)
 void Granular_fx_testAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+
+    // Thin separators between functional dial groups (GRAIN | SCATTER | Reverse),
+    // read from the already-laid-out component bounds rather than recomputing
+    // the layout math here.
+    auto dividerX = [] (const juce::Component& before, const juce::Component& after)
+    {
+        return (before.getRight() + after.getX()) / 2;
+    };
+
+    g.setColour (juce::Colour (0xff2a2a2a));
+    const float rowTop    = (float) grainSizeLabel.getY();
+    const float rowBottom = (float) grainSizeSlider.getBottom();
+    g.drawVerticalLine (dividerX (grainDensitySlider, positionScatterSlider), rowTop, rowBottom);
+    g.drawVerticalLine (dividerX (panScatterSlider,   reverseLabel),          rowTop, rowBottom);
 }
 
 void Granular_fx_testAudioProcessorEditor::resized()
@@ -401,36 +443,47 @@ void Granular_fx_testAudioProcessorEditor::resized()
     dryWetSlider.setBounds (0, PADDING + LABEL_HEIGHT, DW_W,
                             getHeight() - PADDING - LABEL_HEIGHT - PADDING);
 
-    int x = DW_W + PADDING;
-    const int y = PADDING;
+    const int dialAreaL = DW_W + PADDING;   // left edge shared by the RHYTHM row and the pitch envelope below
 
-    // y-position just below the dial row: top padding + label + dial + textbox
-    const int syncRowY  = y + LABEL_HEIGHT + DIAL_SIZE + 16 + PADDING;
+    int x = dialAreaL;
+    const int groupCaptionY = PADDING;
+    const int dialRowY      = PADDING + GROUP_LABEL_HEIGHT;   // dial row starts below the GRAIN/SCATTER captions
+
     const int toggleH   = 20;
     const int comboH    = 20;
     const int comboGap  = 4;
 
-    auto placeControl = [&] (juce::Slider& slider, juce::Label& label)
+    auto placeControl = [&] (juce::Slider& slider, juce::Label& label, int& cx, int cy)
     {
-        label.setBounds  (x, y, DIAL_SIZE, LABEL_HEIGHT);
-        slider.setBounds (x, y + LABEL_HEIGHT, DIAL_SIZE, DIAL_SIZE + 16);
-        x += DIAL_SIZE + PADDING;
+        label.setBounds  (cx, cy, DIAL_SIZE, LABEL_HEIGHT);
+        slider.setBounds (cx, cy + LABEL_HEIGHT, DIAL_SIZE, DIAL_SIZE + 16);
+        cx += DIAL_SIZE + PADDING;
     };
 
-    const int sizeX = x;
-    placeControl (grainSizeSlider, grainSizeLabel);
+    // ---- GRAIN group ----
+    const int grainGroupX = x;
+    const int sizeX       = x;
+    placeControl (grainSizeSlider, grainSizeLabel, x, dialRowY);
+    const int densityX    = x;
+    placeControl (grainDensitySlider, grainDensityLabel, x, dialRowY);
+    grainGroupLabel.setBounds (grainGroupX, groupCaptionY, x - grainGroupX - PADDING, GROUP_LABEL_HEIGHT);
+    x += PADDING;   // extra gap marking the group boundary
 
-    const int densityX = x;
-    placeControl (grainDensitySlider, grainDensityLabel);
-
-    placeControl (positionScatterSlider, positionScatterLabel);
-    placeControl (sizeScatterSlider,     sizeScatterLabel);
-    placeControl (panScatterSlider,      panScatterLabel);
+    // ---- SCATTER group ----
+    const int scatterGroupX = x;
+    placeControl (positionScatterSlider, positionScatterLabel, x, dialRowY);
+    placeControl (sizeScatterSlider,     sizeScatterLabel,     x, dialRowY);
+    placeControl (panScatterSlider,      panScatterLabel,      x, dialRowY);
+    scatterGroupLabel.setBounds (scatterGroupX, groupCaptionY, x - scatterGroupX - PADDING, GROUP_LABEL_HEIGHT);
+    x += PADDING;   // extra gap before Reverse
 
     // Reverse toggle — label above, button centred in the slot below.
-    reverseLabel.setBounds  (x, y, DIAL_SIZE, LABEL_HEIGHT);
-    reverseButton.setBounds (x + DIAL_SIZE / 4, y + LABEL_HEIGHT + (DIAL_SIZE / 2) - 10,
+    reverseLabel.setBounds  (x, dialRowY, DIAL_SIZE, LABEL_HEIGHT);
+    reverseButton.setBounds (x + DIAL_SIZE / 4, dialRowY + LABEL_HEIGHT + (DIAL_SIZE / 2) - 10,
                              DIAL_SIZE / 2, 20);
+
+    // y-position just below the main dial row.
+    const int syncRowY = dialRowY + LABEL_HEIGHT + DIAL_SIZE + 16 + PADDING;
 
     // Sync controls: toggle and combo each span the full dial-slot width.
     sizeSyncButton.setBounds    (sizeX,    syncRowY,                      DIAL_SIZE, toggleH);
@@ -439,16 +492,32 @@ void Granular_fx_testAudioProcessorEditor::resized()
     densitySyncButton.setBounds (densityX, syncRowY,                      DIAL_SIZE, toggleH);
     densityDivisionBox.setBounds(densityX, syncRowY + toggleH + comboGap,  DIAL_SIZE, comboH);
 
-    // Graphical pitch envelope — below the sync controls.
-    const int seqRowY     = syncRowY + toggleH + comboGap + comboH + PADDING;
+    // ---- RHYTHM group (experimental — see GranularProcessor::maybeSpawnGrain()) ----
+    // Placed near the pitch envelope below rather than the main dial row,
+    // since both are about timing/rhythm feel rather than per-grain sound shaping.
+    const int rhythmRowY     = syncRowY + toggleH + comboGap + comboH + PADDING;
+    const int rhythmDialY    = rhythmRowY + GROUP_LABEL_HEIGHT;
+    int rx = dialAreaL;
+    const int rhythmGroupX = rx;
+    placeControl (spawnProbabilitySlider, spawnProbabilityLabel, rx, rhythmDialY);
+    placeControl (swingSlider,            swingLabel,            rx, rhythmDialY);
+    rhythmGroupLabel.setBounds (rhythmGroupX, rhythmRowY, rx - rhythmGroupX - PADDING, GROUP_LABEL_HEIGHT);
+    // ---- end RHYTHM ----
+
+    // Graphical pitch envelope — below the RHYTHM row.
+    const int seqRowY     = rhythmDialY + LABEL_HEIGHT + DIAL_SIZE + 16 + PADDING;
     const int seqEditorH  = 120;
-    const int dialAreaL   = DW_W + PADDING;
     const int editorWidth = getWidth() - dialAreaL - PADDING;
 
     // Header row: label on left, length button and snap button on right
-    seqHeaderLabel.setBounds   (dialAreaL,                             seqRowY, editorWidth - 160, LABEL_HEIGHT);
-    patternLenButton.setBounds (getWidth() - PADDING - 100 - 4 - 56,  seqRowY, 100, LABEL_HEIGHT);
-    snapButton.setBounds       (getWidth() - PADDING - 56,             seqRowY,  56, LABEL_HEIGHT);
+    const int snapW    = 56;
+    const int lenW     = 100;
+    const int btnGap   = 4;
+    const int snapX    = getWidth() - PADDING - snapW;
+    const int lenX     = snapX - btnGap - lenW;
+    seqHeaderLabel.setBounds   (dialAreaL, seqRowY, lenX - btnGap - dialAreaL, LABEL_HEIGHT);
+    patternLenButton.setBounds (lenX,      seqRowY, lenW,                      LABEL_HEIGHT);
+    snapButton.setBounds       (snapX,     seqRowY, snapW,                     LABEL_HEIGHT);
 
     seqEditor.setBounds (dialAreaL, seqRowY + LABEL_HEIGHT, editorWidth, seqEditorH);
 }
